@@ -43,6 +43,7 @@ pub fn render(cx: &mut Ctx, local: Local, fit: Fit, turns: f64) -> El {
         Local::Sprite(s) => super::sprite::render(cx, &s),
         Local::Picture(p) => super::picture::render(cx, &p),
         Local::ZoomView(z) => super::zoom_view::render(cx, &z, fit),
+        Local::KeyListener(k) => super::key_listener::render(cx, &k, fit),
         Local::FittedBox(f) => super::zoom_view::fitted(cx, &f, fit),
         Local::TextInput(t) => super::text_input_widget::render(cx, &t),
         Local::Anchor(a) => super::anchor::render(cx, &a, fit),

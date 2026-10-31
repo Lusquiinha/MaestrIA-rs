@@ -186,6 +186,9 @@ pub fn focus_from(stack: &[KeyContext]) -> Focus {
 
 pub fn on_key_down(host: &Entity<StoreHost>, ev: &KeyDownEvent, window: &Window, cx: &mut App) -> Outcome {
     let Some(p) = press_of(&ev.keystroke) else { return Outcome::Pass };
+    if crate::rfw_view::plugin_key_claimed(&window.context_stack(), &p).is_some() {
+        return Outcome::Pass;
+    }
     if !may_be_shortcut(&p) {
         return Outcome::Pass;
     }

@@ -67,7 +67,8 @@ No UI dependency; the renderer (mx-app) matches on `widgets::Local` and draws.
   TextInput (`text_input::TextInput`: `submitted(text)`, `arrow(key, text)`, `matches(text, dismissed)` ≤ 8,
   `shown_hint()`, `lines()`), Anchor (`key(plugin)` = `"{plugin}/{id}"`), Selectable / SelectionLines
   (`maestria::SelectionArea`), Markdown (`maestria::Markdown`, default size 13.5), Picture
-  (`Local::Picture(Box<picture::Picture>)`: path, width, height, fit default `Contain`); core FittedBox
+  (`Local::Picture(Box<picture::Picture>)`: path, width, height, fit default `Contain`), KeyListener
+  (`key_listener::KeyListener`: `keys` raw strings, `on_key`, `child`); core FittedBox
   (`zoom_view::FittedBox`); anything else → `Local::Unsupported(&Node)`.
 - `maestria::menu_extra(choice)` → `{action: choice}` for `onMenu`. `sprite::{sprite_frame, plugin_file_of}` — Dart
   `spriteFrame` / `pluginFileOf` (no `..`, stays under the plugin dir); `plugin_or_data_file_of(rel, plugin_dir,

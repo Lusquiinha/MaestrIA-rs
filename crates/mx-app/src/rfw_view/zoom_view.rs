@@ -234,11 +234,15 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
         Local::FittedBox(f) => Some((states.fits.peek(), f.fit, super::style::align_axes(&f.alignment))),
         _ => None,
     });
+    let scope = states.key_scope.borrow().clone();
     let m = {
         let mut st = slot.borrow_mut();
         st.content = content;
-        if st.focus.is_none() {
-            st.focus = states.spare_focus.borrow_mut().take();
+        if scope.is_some() {
+            st.focus = None;
+            st.blur = None;
+        } else if st.focus.is_none() {
+            st.focus = states.take_focus();
         }
         st.command(z.command.as_deref(), z.focus, z.command_rev, z.max_scale, now);
         st.current(now)
@@ -307,16 +311,23 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
     });
     let buttons = z.pan_buttons.clone();
     for (button, pan) in [(MouseButton::Left, PanButton::Left), (MouseButton::Middle, PanButton::Middle)] {
-        let (down_slot, allowed) = (slot.clone(), buttons.clone());
+        let (down_slot, allowed, listener) = (slot.clone(), buttons.clone(), scope.clone());
         el = el.on_mouse_down(button, move |e, window, app| {
+            let listener_space = listener.as_ref().is_some_and(|l| l.borrow().space_held(window));
             let pans = {
                 let mut st = down_slot.borrow_mut();
                 if !st.focus.as_ref().is_some_and(|h| h.contains_focused(window, app)) {
                     st.space = false;
                 }
-                allowed.contains(&pan) || (pan == PanButton::Left && st.space)
+                allowed.contains(&pan) || (pan == PanButton::Left && (st.space || listener_space))
             };
             if !pans {
+                return;
+            }
+            if listener.is_some() {
+                let mut st = down_slot.borrow_mut();
+                st.anim = None;
+                st.grab = Some(e.position);
                 return;
             }
             let handle = {

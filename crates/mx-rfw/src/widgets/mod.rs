@@ -1,6 +1,7 @@
 pub mod code_editor;
 pub mod core_layout;
 pub mod core_widgets;
+pub mod key_listener;
 pub mod maestria;
 pub mod picture;
 pub mod sprite;
@@ -16,6 +17,7 @@ use self::core_widgets::{
     Align, Center, Container, Expanded, Flex, FractionallySizedBox, GestureDetector, Opacity, Padding, Positioned,
     Rotation, ScrollList, SingleChild,
 };
+use self::key_listener::KeyListener;
 use self::maestria::{
     Anchor, Draggable, DropTarget, Glyph, IconButton, Markdown, Pressable, SelectionArea, Svg, Tooltip,
 };
@@ -83,6 +85,7 @@ pub enum Local<'a> {
     Sprite(Box<Sprite>),
     Picture(Box<Picture>),
     ZoomView(ZoomView<'a>),
+    KeyListener(KeyListener<'a>),
     TextInput(Box<TextInput<'a>>),
     Anchor(Anchor<'a>),
     Selectable(SelectionArea<'a>),
@@ -135,6 +138,7 @@ pub fn decode(n: &Node) -> Local<'_> {
             "Sprite" => Local::Sprite(Box::new(Sprite::from_node(n))),
             "Picture" => Local::Picture(Box::new(Picture::from_node(n))),
             "ZoomView" => Local::ZoomView(ZoomView::from_node(n)),
+            "KeyListener" => Local::KeyListener(KeyListener::from_node(n)),
             "TextInput" => Local::TextInput(Box::new(TextInput::from_node(n))),
             "Anchor" => Local::Anchor(Anchor::from_node(n)),
             "Selectable" => Local::Selectable(SelectionArea::from_node(n, false)),
