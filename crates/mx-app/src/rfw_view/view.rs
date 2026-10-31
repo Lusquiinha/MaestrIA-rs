@@ -160,7 +160,7 @@ impl Render for RfwView {
         let tree = evaluate(lib, &self.root, &self.content);
         self.editors.sync(&tree, &self.theme, &self.sink, window, cx);
         self.widgets.inputs.sync(&tree, &self.theme, &self.sink, window, cx);
-        self.widgets.begin(window);
+        self.widgets.begin(window, cx);
         let mut ctx = Ctx {
             palette: &self.theme,
             dir: self.dir.as_deref(),

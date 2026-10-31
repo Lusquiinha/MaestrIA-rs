@@ -237,6 +237,9 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
     let m = {
         let mut st = slot.borrow_mut();
         st.content = content;
+        if st.focus.is_none() {
+            st.focus = states.spare_focus.borrow_mut().take();
+        }
         st.command(z.command.as_deref(), z.focus, z.command_rev, z.max_scale, now);
         st.current(now)
     };
@@ -304,7 +307,7 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
     });
     let buttons = z.pan_buttons.clone();
     for (button, pan) in [(MouseButton::Left, PanButton::Left), (MouseButton::Middle, PanButton::Middle)] {
-        let (down_slot, allowed, down_view) = (slot.clone(), buttons.clone(), cx.view.clone());
+        let (down_slot, allowed) = (slot.clone(), buttons.clone());
         el = el.on_mouse_down(button, move |e, window, app| {
             let pans = {
                 let mut st = down_slot.borrow_mut();
@@ -316,26 +319,21 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             if !pans {
                 return;
             }
-            let (handle, fresh) = {
+            let handle = {
                 let mut st = down_slot.borrow_mut();
                 st.anim = None;
                 st.grab = Some(e.position);
-                let fresh = st.focus.is_none();
-                if fresh {
-                    let handle = app.focus_handle();
+                let handle = st.focus.get_or_insert_with(|| app.focus_handle()).clone();
+                if st.blur.is_none() {
                     let blur_slot = down_slot.clone();
                     st.blur = Some(window.on_focus_out(&handle, app, move |_, _, _| {
                         blur_slot.borrow_mut().space = false;
                     }));
-                    st.focus = Some(handle);
                 }
-                (st.focus.clone().expect("the focus handle was just created"), fresh)
+                handle
             };
             if !handle.contains_focused(window, app) {
                 window.focus(&handle);
-            }
-            if fresh {
-                down_view.update(app, |_, cx| cx.notify()).ok();
             }
         });
         let up_slot = slot.clone();

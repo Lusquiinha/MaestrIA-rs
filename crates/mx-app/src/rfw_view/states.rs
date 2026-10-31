@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui::{App, Window, WindowTextSystem};
+use gpui::{App, FocusHandle, Window, WindowTextSystem};
 
 use super::anchor;
 use super::selectable::SelectionSlot;
@@ -60,6 +60,7 @@ pub struct WidgetStates {
     pub anchors: RefCell<HashSet<String>>,
     pub current_selection: RefCell<Option<SelectionSlot>>,
     pub text_system: RefCell<Option<Arc<WindowTextSystem>>>,
+    pub spare_focus: RefCell<Option<FocusHandle>>,
 }
 
 impl Default for WidgetStates {
@@ -76,12 +77,14 @@ impl Default for WidgetStates {
             anchors: RefCell::new(HashSet::new()),
             current_selection: RefCell::new(None),
             text_system: RefCell::new(None),
+            spare_focus: RefCell::new(None),
         }
     }
 }
 
 impl WidgetStates {
-    pub fn begin(&self, window: &Window) {
+    pub fn begin(&self, window: &Window, app: &App) {
+        self.spare_focus.borrow_mut().get_or_insert_with(|| app.focus_handle());
         self.anchors.borrow_mut().clear();
         self.current_selection.borrow_mut().take();
         self.text_system.replace(Some(window.text_system().clone()));

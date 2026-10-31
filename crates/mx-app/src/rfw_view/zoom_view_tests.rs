@@ -191,9 +191,6 @@ fn a_focusable_child_keeps_focus_when_clicked(cx: &mut TestAppContext) {
     cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
     cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
     cx.run_until_parked();
-    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
-    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
-    cx.run_until_parked();
     let focused = cx.update(|window, app| field.read(app).focus.is_focused(window));
     assert!(focused, "the zoom view must not take focus from the TextInput under the pointer");
 }
