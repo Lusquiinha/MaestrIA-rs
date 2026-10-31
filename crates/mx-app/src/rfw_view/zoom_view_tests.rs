@@ -151,3 +151,49 @@ fn default_pan_buttons_keep_the_left_drag(cx: &mut TestAppContext) {
     let left = drag(cx, MouseButton::Left, at);
     assert!(f32::from(left.origin.x - start.origin.x) > 30.0, "{start:?} -> {left:?}");
 }
+
+#[gpui::test]
+fn space_is_released_when_the_view_loses_focus(cx: &mut TestAppContext) {
+    let cx = open_plan(cx, MIDDLE_ONLY);
+    cx.update(|window, _| window.activate_window());
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    drag(cx, MouseButton::Middle, at);
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space, is_held: false, ime_commit: false });
+    cx.update(|window, app| {
+        let elsewhere = app.focus_handle();
+        window.focus(&elsewhere);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    let before = label(cx);
+    let after = drag(cx, MouseButton::Left, at);
+    assert_eq!(after.origin.x, before.origin.x, "a stale space must not pan with panButtons: [middle]");
+}
+
+#[gpui::test]
+fn a_focusable_child_keeps_focus_when_clicked(cx: &mut TestAppContext) {
+    let plan = r#"ZoomView(maxScale: 6.0, child: Column(children: [TextInput(id: "chat")]))"#;
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
+    let (view, cx) = cx.add_window_view(move |_, _| {
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, Rc::new(|_, _, _| {}));
+        v.set_library(&library);
+        v.set_root("root");
+        v
+    });
+    cx.simulate_resize(size(px(560.0), px(400.0)));
+    cx.run_until_parked();
+    let field = view.read_with(cx, |v, _| v.text_field("chat")).expect("no TextInput");
+    let at = point(px(100.), px(20.));
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+    let focused = cx.update(|window, app| field.read(app).focus.is_focused(window));
+    assert!(focused, "the zoom view must not take focus from the TextInput under the pointer");
+}

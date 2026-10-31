@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{
     AnyWindowHandle, App, AppContext, Bounds, InteractiveElement, FocusHandle, MouseButton, ParentElement, Pixels, Point,
-    ScrollDelta, Styled, Task, WeakEntity, Window, canvas, px, relative,
+    ScrollDelta, Styled, Subscription, Task, WeakEntity, Window, canvas, px, relative,
 };
 use mx_rfw::Event;
 use mx_rfw::widgets::zoom_view::{
@@ -52,6 +52,7 @@ pub struct ZoomState {
     grab: Option<Point<Pixels>>,
     space: bool,
     focus: Option<FocusHandle>,
+    blur: Option<Subscription>,
     moved: bool,
     content: Option<(FitSlot, BoxFit, (f64, f64))>,
 }
@@ -68,6 +69,7 @@ impl Default for ZoomState {
             grab: None,
             space: false,
             focus: None,
+            blur: None,
             moved: false,
             content: None,
         }
@@ -304,16 +306,36 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
     for (button, pan) in [(MouseButton::Left, PanButton::Left), (MouseButton::Middle, PanButton::Middle)] {
         let (down_slot, allowed, down_view) = (slot.clone(), buttons.clone(), cx.view.clone());
         el = el.on_mouse_down(button, move |e, window, app| {
-            let mut st = down_slot.borrow_mut();
-            let fresh = st.focus.is_none();
-            let handle = st.focus.get_or_insert_with(|| app.focus_handle()).clone();
-            window.focus(&handle);
-            if fresh {
-                down_view.update(app, |_, cx| cx.notify()).ok();
+            let pans = {
+                let mut st = down_slot.borrow_mut();
+                if !st.focus.as_ref().is_some_and(|h| h.contains_focused(window, app)) {
+                    st.space = false;
+                }
+                allowed.contains(&pan) || (pan == PanButton::Left && st.space)
+            };
+            if !pans {
+                return;
             }
-            if allowed.contains(&pan) || (pan == PanButton::Left && st.space) {
+            let (handle, fresh) = {
+                let mut st = down_slot.borrow_mut();
                 st.anim = None;
                 st.grab = Some(e.position);
+                let fresh = st.focus.is_none();
+                if fresh {
+                    let handle = app.focus_handle();
+                    let blur_slot = down_slot.clone();
+                    st.blur = Some(window.on_focus_out(&handle, app, move |_, _, _| {
+                        blur_slot.borrow_mut().space = false;
+                    }));
+                    st.focus = Some(handle);
+                }
+                (st.focus.clone().expect("the focus handle was just created"), fresh)
+            };
+            if !handle.contains_focused(window, app) {
+                window.focus(&handle);
+            }
+            if fresh {
+                down_view.update(app, |_, cx| cx.notify()).ok();
             }
         });
         let up_slot = slot.clone();
@@ -321,11 +343,11 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
     }
     let key_focus = slot.borrow().focus.clone();
     if let Some(handle) = key_focus {
-        let (key_down, key_up) = (slot.clone(), slot.clone());
+        let (key_down, key_up, own) = (slot.clone(), slot.clone(), handle.clone());
         el = el
             .track_focus(&handle)
-            .on_key_down(move |e, _, _| {
-                if e.keystroke.key == "space" {
+            .on_key_down(move |e, window, _| {
+                if e.keystroke.key == "space" && own.is_focused(window) {
                     key_down.borrow_mut().space = true;
                 }
             })
