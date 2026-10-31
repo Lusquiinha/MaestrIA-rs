@@ -3,12 +3,12 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyWindowHandle, App, AppContext, Bounds, InteractiveElement, MouseButton, ParentElement, Pixels, Point,
+    AnyWindowHandle, App, AppContext, Bounds, InteractiveElement, FocusHandle, MouseButton, ParentElement, Pixels, Point,
     ScrollDelta, Styled, Task, WeakEntity, Window, canvas, px, relative,
 };
 use mx_rfw::Event;
 use mx_rfw::widgets::zoom_view::{
-    ANIMATION_MS, BoxFit, FittedBox, SETTLE_MS, Transform, ZoomView, command_transform, ease_out_cubic, fitted_placement,
+    ANIMATION_MS, BoxFit, FittedBox, PanButton, SETTLE_MS, Transform, ZoomView, command_transform, ease_out_cubic, fitted_placement,
     fitted_scale, focus_in_placement, focus_transform, move_extra, pan, should_report, wheel_factor, zoom_around,
     zoom_extra, zoom_target,
 };
@@ -50,6 +50,8 @@ pub struct ZoomState {
     reported: f64,
     settle: Option<Task<()>>,
     grab: Option<Point<Pixels>>,
+    space: bool,
+    focus: Option<FocusHandle>,
     moved: bool,
     content: Option<(FitSlot, BoxFit, (f64, f64))>,
 }
@@ -64,6 +66,8 @@ impl Default for ZoomState {
             reported: 1.0,
             settle: None,
             grab: None,
+            space: false,
+            focus: None,
             moved: false,
             content: None,
         }
@@ -296,23 +300,50 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             wheel_rep.changed(window.window_handle(), app);
         }
     });
-    let down_slot = slot.clone();
-    el = el.on_mouse_down(MouseButton::Left, move |e, _, _| {
-        let mut st = down_slot.borrow_mut();
-        st.anim = None;
-        st.grab = Some(e.position);
-    });
-    let (move_slot, move_rep) = (slot.clone(), reporter);
-    el = el.on_mouse_move(move |e, window, app| {
-        if e.pressed_button != Some(MouseButton::Left) {
+    let buttons = z.pan_buttons.clone();
+    for (button, pan) in [(MouseButton::Left, PanButton::Left), (MouseButton::Middle, PanButton::Middle)] {
+        let (down_slot, allowed, down_view) = (slot.clone(), buttons.clone(), cx.view.clone());
+        el = el.on_mouse_down(button, move |e, window, app| {
+            let mut st = down_slot.borrow_mut();
+            let fresh = st.focus.is_none();
+            let handle = st.focus.get_or_insert_with(|| app.focus_handle()).clone();
+            window.focus(&handle);
+            if fresh {
+                down_view.update(app, |_, cx| cx.notify()).ok();
+            }
+            if allowed.contains(&pan) || (pan == PanButton::Left && st.space) {
+                st.anim = None;
+                st.grab = Some(e.position);
+            }
+        });
+        let up_slot = slot.clone();
+        el = el.on_mouse_up(button, move |_, _, _| up_slot.borrow_mut().grab = None);
+    }
+    let key_focus = slot.borrow().focus.clone();
+    if let Some(handle) = key_focus {
+        let (key_down, key_up) = (slot.clone(), slot.clone());
+        el = el
+            .track_focus(&handle)
+            .on_key_down(move |e, _, _| {
+                if e.keystroke.key == "space" {
+                    key_down.borrow_mut().space = true;
+                }
+            })
+            .on_key_up(move |e, _, _| {
+                if e.keystroke.key == "space" {
+                    key_up.borrow_mut().space = false;
+                }
+            });
+    }
+    let (move_slot, move_rep) = (slot, reporter);
+    el.on_mouse_move(move |e, window, app| {
+        if !matches!(e.pressed_button, Some(MouseButton::Left | MouseButton::Middle)) {
             return;
         }
         if move_slot.borrow_mut().drag(e.position) {
             move_rep.changed(window.window_handle(), app);
         }
-    });
-    let up_slot = slot;
-    el.on_mouse_up(MouseButton::Left, move |_, _, _| up_slot.borrow_mut().grab = None)
+    })
 }
 
 #[derive(Default)]

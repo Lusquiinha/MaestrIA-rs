@@ -15,6 +15,7 @@ pub struct ZoomView<'a> {
     pub command: Option<String>,
     pub command_rev: i64,
     pub focus: Option<(f64, f64, f64, f64)>,
+    pub pan_buttons: Vec<PanButton>,
     pub on_zoom: Vec<&'a Event>,
     pub on_move: Vec<&'a Event>,
 }
@@ -27,10 +28,28 @@ impl<'a> ZoomView<'a> {
             command: n.arg("command").as_str().map(str::to_owned),
             command_rev: rounded(n.arg("commandRev")).unwrap_or(0),
             focus: focus_rect(n.arg("focus")),
+            pan_buttons: pan_buttons(n.arg("panButtons")),
             on_zoom: n.handlers("onZoom"),
             on_move: n.handlers("onMove"),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanButton {
+    Left,
+    Middle,
+}
+
+fn pan_buttons(v: &Value) -> Vec<PanButton> {
+    let Some(list) = v.as_list() else { return vec![PanButton::Left, PanButton::Middle] };
+    list.iter()
+        .filter_map(|b| match b.as_str()? {
+            "left" => Some(PanButton::Left),
+            "middle" => Some(PanButton::Middle),
+            _ => None,
+        })
+        .collect()
 }
 
 fn focus_rect(v: &Value) -> Option<(f64, f64, f64, f64)> {

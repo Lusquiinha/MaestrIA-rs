@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point, px, size,
+    Bounds, Modifiers, MouseButton, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point, px, size,
 };
 use mx_theme::{Typography, default_theme};
 
@@ -11,7 +11,11 @@ const PLAN: &str = r#"ZoomView(maxScale: 6.0, child: FittedBox(fit: "contain",
   child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
 
 fn open(cx: &mut TestAppContext) -> &mut VisualTestContext {
-    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {PLAN};");
+    open_plan(cx, PLAN)
+}
+
+fn open_plan<'a>(cx: &'a mut TestAppContext, plan: &str) -> &'a mut VisualTestContext {
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
     let (_, vcx) = cx.add_window_view(move |_, _| {
         let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, Rc::new(|_, _, _| {}));
         v.set_library(&library);
@@ -100,4 +104,50 @@ fn a_programmatic_command_discards_a_pending_user_move() {
     st.command(Some("focus"), Some((0.5, 0.5, 0.25, 0.25)), 1, 6.0, t0);
     st.current(t0 + Duration::from_secs(1));
     assert_eq!(st.settled_move(), None);
+}
+
+const MIDDLE_ONLY: &str = r#"ZoomView(maxScale: 6.0, panButtons: ["middle"], child: FittedBox(fit: "contain",
+  child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
+
+fn drag(cx: &mut VisualTestContext, button: MouseButton, from: gpui::Point<Pixels>) -> Bounds<Pixels> {
+    let none = Modifiers::default();
+    cx.simulate_mouse_down(from, button, none);
+    cx.simulate_mouse_move(from + point(px(40.), px(0.)), button, none);
+    cx.simulate_mouse_up(from + point(px(40.), px(0.)), button, none);
+    label(cx)
+}
+
+#[gpui::test]
+fn pan_buttons_gate_which_button_drags_and_space_always_pans_with_left(cx: &mut TestAppContext) {
+    let cx = open_plan(cx, MIDDLE_ONLY);
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    let start = label(cx);
+    let left = drag(cx, MouseButton::Left, at);
+    assert_eq!(left.origin.x, start.origin.x, "left must not pan with panButtons: [middle]");
+    let middle = drag(cx, MouseButton::Middle, at);
+    assert!(f32::from(middle.origin.x - start.origin.x) > 30.0, "{start:?} -> {middle:?}");
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space.clone(), is_held: false, ime_commit: false });
+    let before = label(cx);
+    let spaced = drag(cx, MouseButton::Left, at);
+    assert!(f32::from(spaced.origin.x - before.origin.x) > 30.0, "{before:?} -> {spaced:?}");
+    cx.simulate_event(gpui::KeyUpEvent { keystroke: space });
+    let after = label(cx);
+    let released = drag(cx, MouseButton::Left, at);
+    assert_eq!(released.origin.x, after.origin.x, "releasing space ends the left-pan");
+}
+
+#[gpui::test]
+fn default_pan_buttons_keep_the_left_drag(cx: &mut TestAppContext) {
+    let cx = open(cx);
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    let start = label(cx);
+    let left = drag(cx, MouseButton::Left, at);
+    assert!(f32::from(left.origin.x - start.origin.x) > 30.0, "{start:?} -> {left:?}");
 }

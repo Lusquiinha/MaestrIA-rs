@@ -7,7 +7,7 @@ use mx_rfw::widgets::maestria::{MARKDOWN_BASE_SIZE, anchor_key};
 use mx_rfw::widgets::sprite::{Sprite, plugin_file_of, sprite_frame};
 use mx_rfw::widgets::text_input::{ClearSeen, completed};
 use mx_rfw::widgets::zoom_view::{
-    BoxFit, Transform, ZoomView, clamp_translation, command_transform, fitted_placement, fitted_scale, focus_in_placement,
+    BoxFit, PanButton, Transform, ZoomView, clamp_translation, command_transform, fitted_placement, fitted_scale, focus_in_placement,
     focus_transform, should_report, wheel_factor, zoom_around, zoom_target,
 };
 use mx_rfw::widgets::{Local, decode};
@@ -387,4 +387,21 @@ fn focus_is_relative_to_the_fitted_content_not_the_viewport() {
     assert!(left >= -0.5 && right <= 1000.5, "{m:?} {left} {right}");
     let q = focus_transform(view, focus_in_placement((0.375, 0.0, 0.25, 1.0), placed), 6.0);
     assert!(((500.0 * q.scale + q.x) - 500.0).abs() < 0.5 && ((400.0 * q.scale + q.y) - 400.0).abs() < 0.5, "{q:?}");
+}
+
+#[test]
+fn pan_buttons_default_left_and_middle() {
+    let t = tree("widget root = ZoomView();", "{}");
+    let Local::ZoomView(z) = decode(root(&t)) else { panic!() };
+    assert_eq!(z.pan_buttons, vec![PanButton::Left, PanButton::Middle]);
+}
+
+#[test]
+fn pan_buttons_parses_middle_only() {
+    let t = tree(r#"widget root = ZoomView(panButtons: ["middle"]);"#, "{}");
+    let Local::ZoomView(z) = decode(root(&t)) else { panic!() };
+    assert_eq!(z.pan_buttons, vec![PanButton::Middle]);
+    let t = tree(r#"widget root = ZoomView(panButtons: ["left", "bogus"]);"#, "{}");
+    let Local::ZoomView(z) = decode(root(&t)) else { panic!() };
+    assert_eq!(z.pan_buttons, vec![PanButton::Left]);
 }

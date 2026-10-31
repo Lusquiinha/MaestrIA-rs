@@ -338,7 +338,7 @@ Before `onCall` is wired: `a janela ainda não está pronta` (-32002).
   "apiVersion": 1, "blocks": 2, "rfw": 2, "floats": 1, "input": 1, "form": 1, "modal": 1, "editor": 1,
   "sprites": 1, "zoom": 1, "textInput": 1, "openInBackground": 1, "markdown": 1, "pasteImage": 1, "keys": 1,
   "arrows": 1, "wake": 1, "hibernate": 1, "portrait": 1, "closeSessions": 1, "modalFrom": 1, "selectable": 1,
-  "rename": 1, "picture": 1, "zoomFocus": 1,
+  "rename": 1, "picture": 1, "zoomFocus": 1, "zoomPan": 1,
   "pluginId": "<id>", "pluginDir": "<dir>", "dataDir": "~/.maestria/plugin-data/<id> (absolute)",
   "permissions": ["hooks", ...], "settings": { ... resolved ... }
 }
@@ -346,6 +346,7 @@ Before `onCall` is wired: `a janela ainda não está pronta` (-32002).
 Capability flags come from `CAPABILITIES` (`mx-plugins/src/registry/lifecycle.rs`), in that wire order.
 `picture: 1` (Rust port only) means the `maestria.Picture` widget (§3.4 C.3) is available.
 `zoomFocus: 1` (Rust port only) means `maestria.ZoomView` accepts `command: "focus"` and `onMove` (§3.4 C.3).
+`zoomPan: 1` (Rust port only) means `maestria.ZoomView` accepts `panButtons` (§3.4 C.3).
 The result is ignored (any value). Errors → crash `o initialize falhou: <message>`.
 Timeout message: `"initialize" ficou sem resposta por 10s` (generic: `"<method>" ficou sem resposta por <n>s`, code -32002).
 
@@ -1084,6 +1085,7 @@ Notation: `name: decoder = default`. "USED" lists what the real files pass.
 - When the ZoomView's direct child is a `FittedBox`, `focus` fractions are relative to the fitted content, not the viewport: the rect is first mapped through the content's placed rect (same fit/alignment as the FittedBox, using its measured natural size; before it is measured, or for any other child, the fractions apply to the whole view). The final translation is still clamped, so a rect touching the content edge cannot be centred and is just fully visible.
 - A programmatic command that starts an animation discards a pending (not yet reported) user move, so `onMove` never fires at the end of it.
 - `onMove`: fired after a user pan (drag, trackpad scroll) or wheel zoom settles (same 200 ms as `onZoom`), with extra `{scale, x, y}` (the transform: `x`/`y` are the layer translation in logical px). Programmatic commands never fire it. `onZoom` is unchanged.
+- `panButtons: ["left"|"middle", …]` (capability `zoomPan: 1`; default `["left","middle"]`, so existing views keep the left-drag): the mouse buttons whose drag pans. Unknown names are ignored; `[]` disables button panning. While Space is held, a left-drag pans regardless of `panButtons`. Space is read from key events on the ZoomView, which takes keyboard focus when a button is pressed on it (so Space works after the first click or drag on the view). `onMove` semantics are unchanged.
 
 ##### C.4 Decoders reachable from the used widgets and arguments
 
