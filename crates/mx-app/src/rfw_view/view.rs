@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui::{Context, Div, IntoElement, ParentElement, Render, Styled, Window, div, px, relative};
+use gpui::{Context, Div, IntoElement, ParentElement, Render, Styled, Subscription, Window, div, px, relative};
 use mx_rfw::{DynamicContent, Library, evaluate, parse_error_text, parse_library_file};
 use mx_theme::{Palette, Theme, Typography};
 
@@ -37,6 +37,7 @@ pub struct RfwView {
     pub(super) dragging: Option<DragNow>,
     editors: CodeEditors,
     widgets: WidgetStates,
+    activation: Option<Subscription>,
 }
 
 impl HasMenu for RfwView {
@@ -65,6 +66,7 @@ impl RfwView {
             dragging: None,
             editors: CodeEditors::default(),
             widgets: WidgetStates::default(),
+            activation: None,
         }
     }
 
@@ -131,6 +133,11 @@ impl RfwView {
         self.widgets.inputs.field(id)
     }
 
+    #[cfg(test)]
+    pub(super) fn widget_states(&self) -> &WidgetStates {
+        &self.widgets
+    }
+
     pub fn set_background(&mut self, background: Option<gpui::Hsla>) {
         self.background = background;
     }
@@ -140,6 +147,9 @@ impl Render for RfwView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !cx.has_active_drag() {
             self.dragging = None;
+        }
+        if self.activation.is_none() {
+            self.activation = Some(cx.observe_window_activation(window, |this, _, _| this.widgets.release_space()));
         }
         let p = self.theme.clone();
         let mut root = text_root(div(), &p).size_full().flex().flex_col();
@@ -160,7 +170,7 @@ impl Render for RfwView {
         let tree = evaluate(lib, &self.root, &self.content);
         self.editors.sync(&tree, &self.theme, &self.sink, window, cx);
         self.widgets.inputs.sync(&tree, &self.theme, &self.sink, window, cx);
-        self.widgets.begin(window);
+        self.widgets.begin(window, cx);
         let mut ctx = Ctx {
             palette: &self.theme,
             dir: self.dir.as_deref(),

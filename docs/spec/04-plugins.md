@@ -338,7 +338,7 @@ Before `onCall` is wired: `a janela ainda não está pronta` (-32002).
   "apiVersion": 1, "blocks": 2, "rfw": 2, "floats": 1, "input": 1, "form": 1, "modal": 1, "editor": 1,
   "sprites": 1, "zoom": 1, "textInput": 1, "openInBackground": 1, "markdown": 1, "pasteImage": 1, "keys": 1,
   "arrows": 1, "wake": 1, "hibernate": 1, "portrait": 1, "closeSessions": 1, "modalFrom": 1, "selectable": 1,
-  "rename": 1, "picture": 1, "zoomFocus": 1,
+  "rename": 1, "picture": 1, "zoomFocus": 1, "zoomPan": 1, "keyListener": 1,
   "pluginId": "<id>", "pluginDir": "<dir>", "dataDir": "~/.maestria/plugin-data/<id> (absolute)",
   "permissions": ["hooks", ...], "settings": { ... resolved ... }
 }
@@ -346,6 +346,8 @@ Before `onCall` is wired: `a janela ainda não está pronta` (-32002).
 Capability flags come from `CAPABILITIES` (`mx-plugins/src/registry/lifecycle.rs`), in that wire order.
 `picture: 1` (Rust port only) means the `maestria.Picture` widget (§3.4 C.3) is available.
 `zoomFocus: 1` (Rust port only) means `maestria.ZoomView` accepts `command: "focus"` and `onMove` (§3.4 C.3).
+`zoomPan: 1` (Rust port only) means `maestria.ZoomView` accepts `panButtons` (§3.4 C.3).
+`keyListener: 1` (Rust port only) means the `maestria.KeyListener` widget (§3.4 C.3) is available.
 The result is ignored (any value). Errors → crash `o initialize falhou: <message>`.
 Timeout message: `"initialize" ficou sem resposta por 10s` (generic: `"<method>" ficou sem resposta por <n>s`, code -32002).
 
@@ -1076,14 +1078,26 @@ Notation: `name: decoder = default`. "USED" lists what the real files pass.
 - Named `Picture`, not `Image`, because `core.widgets` already has `Image` and both libraries are usually imported together.
 - `path` is relative. It is looked up first in the plugin dir, then in the plugin data dir (`<state>/plugin-data/<id>`, the `dataDir` sent in `initialize`). Rejected: `..` anywhere, absolute paths, empty, files that do not exist.
 - Decoded with the `image` crate (PNG and the other formats it reads). Decoded images are cached by `(path, mtime, len)`, at most 64 (the oldest is dropped), so a file rewritten in place shows the new image on the next render.
+- Each decoded image also keeps a halving pyramid (Triangle filter, down to 32 px wide), counted in the cache's byte budget. It is painted from the smallest level at least as wide as its on-screen device px, because the renderer samples bilinearly from one level: a full-size screenshot drawn at a fraction of its size would alias and shimmer as it moves.
 - Size: `width`/`height` when given, otherwise the image's natural size (one missing side follows the aspect ratio). The image is drawn centered in that box per `fit` and clipped to it. A missing or unreadable file renders an empty box of `width`×`height`.
 
 **ZoomView additions** (Rust port only; capability `zoomFocus: 1`; the base widget is in `06-delta-2.4-to-2.7.md`)
 - `command: "focus"` with `focus: {x, y, w, h}` (numbers, fractions 0..1 of the child box) and `commandRev`. Runs only when `commandRev` changes after mount, animated like `in`/`out`/`fit`. Without a valid `focus` map it does nothing.
 - Target: scale = clamp(min(1/w, 1/h) × 0.9, 1.0, `maxScale`); the rect centre is moved to the view centre, then the translation is clamped so nothing outside the child shows. Focusing `(0,0,1,1)` gives the identity transform.
 - When the ZoomView's direct child is a `FittedBox`, `focus` fractions are relative to the fitted content, not the viewport: the rect is first mapped through the content's placed rect (same fit/alignment as the FittedBox, using its measured natural size; before it is measured, or for any other child, the fractions apply to the whole view). The final translation is still clamped, so a rect touching the content edge cannot be centred and is just fully visible.
+- A direct `FittedBox` child is fitted to the zoomed box of the same frame (viewport × `scale`), not to the box measured on the previous frame, so a wheel step or a command animation never draws one frame at the old fit.
 - A programmatic command that starts an animation discards a pending (not yet reported) user move, so `onMove` never fires at the end of it.
+- `fit` (Rust port only; extra of both `onZoom` and `onMove`): a positive number, the scale the direct `FittedBox` child applies to its content (content → viewport; `1` when the child is not a measured `FittedBox`), so on-screen px = content px × `scale` × `fit`. `onZoom` also fires once ~200 ms after the first layout and after every viewport resize and whenever the content's measured size changes `fit`, even when `scale` did not change, so the host learns `fit` without any gesture.
 - `onMove`: fired after a user pan (drag, trackpad scroll) or wheel zoom settles (same 200 ms as `onZoom`), with extra `{scale, x, y}` (the transform: `x`/`y` are the layer translation in logical px). Programmatic commands never fire it. `onZoom` is unchanged.
+- `panButtons: ["left"|"middle", …]` (capability `zoomPan: 1`; default `["left","middle"]`, so existing views keep the left-drag): the mouse buttons whose drag pans. Unknown names are ignored; `[]` disables button panning. While Space is held, a left-drag pans regardless of `panButtons`. Space is read from key events on the ZoomView, which takes keyboard focus when a button is pressed on it (so Space works after the first click or drag on the view). Inside a `KeyListener` the ZoomView takes no focus of its own: the listener holds it and Space is read from the listener. `onMove` semantics are unchanged.
+
+**KeyListener** (Rust port only; capability `keyListener: 1`)
+- Reads: `keys: List<String>` (non-strings skipped), `onKey: handler`, `child: optionalChild`.
+- Key spelling is the command `key` syntax (`ctrl`, `alt`, `shift`, `meta` joined by `+`, then the key): `ctrl+c`, `escape`, `ctrl+0`, `ctrl+=`, `ctrl+-`, `ctrl+plus` (the `+` key). Modifiers must match exactly: `ctrl+c` fires on Ctrl+C, not on Ctrl+Shift+C. `meta` is the Super/⌘ key, not Ctrl. Unparsable entries are ignored.
+- Focus: any mouse press inside it (any button, even one a child stops) focuses the listener unless the focus is already inside it, so a click that selects something on a canvas focuses it; a focusable child (`TextInput`) still takes the focus of its own press. Focusing the pane (first click on a pane, tab switch) keeps a focus that is already inside the pane, so the listener keeps it.
+- A key-down matching one of `keys` while the focus is inside the listener fires `onKey` with extra `{key: "<chord as declared>"}` and is consumed; other keys pass through. Nothing fires while a text field (`TextInput`, `CodeEditor`) or a terminal holds the focus, so a focused `TextInput` keeps Ctrl+C.
+- Declared chords win over the app shortcuts while it has the focus: Ctrl+0/=/- do not zoom the app then.
+- Space held while the listener itself has the focus lets a left-drag pan any `ZoomView` inside it (whatever its `panButtons`). Space counts as released when the focus leaves the listener or the window is activated or deactivated (also for a `ZoomView`'s own Space).
 
 ##### C.4 Decoders reachable from the used widgets and arguments
 

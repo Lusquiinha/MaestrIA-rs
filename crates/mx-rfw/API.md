@@ -67,7 +67,8 @@ No UI dependency; the renderer (mx-app) matches on `widgets::Local` and draws.
   TextInput (`text_input::TextInput`: `submitted(text)`, `arrow(key, text)`, `matches(text, dismissed)` ≤ 8,
   `shown_hint()`, `lines()`), Anchor (`key(plugin)` = `"{plugin}/{id}"`), Selectable / SelectionLines
   (`maestria::SelectionArea`), Markdown (`maestria::Markdown`, default size 13.5), Picture
-  (`Local::Picture(Box<picture::Picture>)`: path, width, height, fit default `Contain`); core FittedBox
+  (`Local::Picture(Box<picture::Picture>)`: path, width, height, fit default `Contain`), KeyListener
+  (`key_listener::KeyListener`: `keys` raw strings, `on_key`, `child`); core FittedBox
   (`zoom_view::FittedBox`); anything else → `Local::Unsupported(&Node)`.
 - `maestria::menu_extra(choice)` → `{action: choice}` for `onMenu`. `sprite::{sprite_frame, plugin_file_of}` — Dart
   `spriteFrame` / `pluginFileOf` (no `..`, stays under the plugin dir); `plugin_or_data_file_of(rel, plugin_dir,
@@ -76,5 +77,9 @@ No UI dependency; the renderer (mx-app) matches on `widgets::Local` and draws.
   should_report, zoom_extra, fitted_scale, ease_out_cubic, ease_in_cubic}` — the InteractiveViewer math (step 1.5,
   scaleFactor 200, 220 ms command animation, onZoom 200 ms after settling when |Δscale| ≥ 0.005).
   `ZoomView.focus` ({x,y,w,h} child fractions) → `focus_transform(size, rect, max)` (10% margin), mapped through
-  `fitted_placement` + `focus_in_placement` under a FittedBox; `on_move` gets `move_extra(m)` = `{scale, x, y}`.
+  `fitted_placement` + `focus_in_placement` under a FittedBox; `on_move` gets `move_extra(m, fit)` = `{fit, scale, x, y}`.
+  `on_zoom` gets `zoom_extra(scale, fit)` = `{scale, fit}`.
+  `fit` is the FittedBox child's content → viewport scale (1 otherwise).
+  `on_zoom` is also forced after the first layout, after every resize and when `fit` changes (content resized).
+  `ZoomView.panButtons` (`["left","middle"]` default) → `pan_buttons: Vec<PanButton>`; Space + left-drag always pans; Space resets on focus-out and on window (de)activation.
 - `text_input::{ClearSeen, completed}` — `clear` empties a field only when it changes after the first sight.

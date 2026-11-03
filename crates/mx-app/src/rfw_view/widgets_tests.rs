@@ -158,3 +158,41 @@ fn placed_centers_the_fitted_image_and_fill_stretches_it() {
     assert_eq!(placed(BoxFit::Cover, (4.0, 2.0), (100.0, 100.0)), (-50.0, 0.0, 200.0, 100.0));
     assert_eq!(placed(BoxFit::None, (10.0, 10.0), (100.0, 50.0)), (45.0, 20.0, 10.0, 10.0));
 }
+
+#[test]
+fn variant_for_picks_nearest_not_smaller() {
+    use super::picture::{decoded, load, variant_for};
+    let tmp = picture_dir("pyramid");
+    let f = tmp.join("wide.png");
+    write_png(&f, 1600, 40);
+    let loaded = load(&f).unwrap();
+    let before = decoded();
+    let width = |target: f32| {
+        let v = variant_for(&loaded, target);
+        loaded.variants.iter().find(|(_, _, img)| std::sync::Arc::ptr_eq(img, &v)).map(|(w, _, _)| *w)
+    };
+    assert_eq!(width(2000.0), Some(1600));
+    assert_eq!(width(900.0), Some(1600));
+    assert_eq!(width(300.0), Some(400));
+    assert_eq!(width(10.0), loaded.variants.last().map(|(w, _, _)| *w));
+    assert!(loaded.variants.last().unwrap().0 < 100, "{:?}", loaded.variants.iter().map(|v| v.0).collect::<Vec<_>>());
+    assert!(std::sync::Arc::ptr_eq(&variant_for(&loaded, 1600.0), &loaded.image));
+    load(&f).unwrap();
+    assert_eq!(decoded(), before);
+    std::fs::remove_dir_all(&tmp).ok();
+}
+
+#[test]
+fn the_picture_pyramid_counts_in_the_cache_budget() {
+    use super::picture::{cached_bytes, load, set_budget};
+    set_budget(usize::MAX);
+    let tmp = picture_dir("pyramid-bytes");
+    let f = tmp.join("a.png");
+    write_png(&f, 256, 256);
+    let before = cached_bytes();
+    let loaded = load(&f).unwrap();
+    let levels: usize = loaded.variants.iter().map(|(w, h, _)| *w as usize * *h as usize * 4).sum();
+    assert!(loaded.variants.len() > 1);
+    assert_eq!(cached_bytes() - before, levels);
+    std::fs::remove_dir_all(&tmp).ok();
+}

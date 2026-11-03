@@ -15,7 +15,7 @@ pub use chord::{
     LINUX, TerminalKey, check_chord, copy_chord, paste_chords, press_of,
     select_all_chord, terminal_key,
 };
-pub use dispatch::{Outcome, UiRequest, keymap_of, on_key_down};
+pub use dispatch::{Outcome, UiRequest, focus_from, keymap_of, on_key_down};
 pub use settings::{apply, shortcut_rows, zoom_keys};
 #[cfg(test)]
 pub use map::Keymap;

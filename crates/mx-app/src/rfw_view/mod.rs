@@ -13,6 +13,7 @@ mod drag;
 mod grid;
 mod icon_paths;
 mod icons;
+mod key_listener;
 mod layout;
 mod menu;
 mod paint;
@@ -48,6 +49,7 @@ pub use icons::named as named_icon;
 pub use code_editor::own_code_buffers;
 pub use anchor::anchor_rect;
 pub use states::FollowLink;
+pub use key_listener::claimed as plugin_key_claimed;
 
 pub fn plugin_glyph(icon: Option<&str>, dir: Option<&std::path::Path>, size: f32, color: gpui::Hsla) -> gpui::AnyElement {
     icons::glyph(icon, dir, size, color, 0.0)

@@ -10,7 +10,7 @@ use crate::{BLOCKS_VERSION, PLUGIN_API};
 
 pub const MAESTRIA_COMPAT: &str = "2.7.0";
 
-pub const CAPABILITIES: [(&str, i64, bool); 23] = [
+pub const CAPABILITIES: [(&str, i64, bool); 25] = [
     ("rfw", 2, true),
     ("floats", 1, true),
     ("input", 1, true),
@@ -34,6 +34,8 @@ pub const CAPABILITIES: [(&str, i64, bool); 23] = [
     ("rename", 1, true),
     ("picture", 1, true),
     ("zoomFocus", 1, true),
+    ("zoomPan", 1, true),
+    ("keyListener", 1, true),
 ];
 
 pub const INITIALIZE_TIMEOUT: Duration = Duration::from_secs(10);

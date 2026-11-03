@@ -3,12 +3,12 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gpui::{
-    AnyWindowHandle, App, AppContext, Bounds, InteractiveElement, MouseButton, ParentElement, Pixels, Point,
-    ScrollDelta, Styled, Task, WeakEntity, Window, canvas, px, relative,
+    AnyWindowHandle, App, AppContext, Bounds, InteractiveElement, FocusHandle, MouseButton, ParentElement, Pixels, Point,
+    ScrollDelta, Styled, Subscription, Task, WeakEntity, Window, canvas, px, relative,
 };
 use mx_rfw::Event;
 use mx_rfw::widgets::zoom_view::{
-    ANIMATION_MS, BoxFit, FittedBox, SETTLE_MS, Transform, ZoomView, command_transform, ease_out_cubic, fitted_placement,
+    ANIMATION_MS, BoxFit, FittedBox, PanButton, SETTLE_MS, Transform, ZoomView, command_transform, ease_out_cubic, fitted_placement,
     fitted_scale, focus_in_placement, focus_transform, move_extra, pan, should_report, wheel_factor, zoom_around,
     zoom_extra, zoom_target,
 };
@@ -22,9 +22,11 @@ use super::widgets_core::optional;
 // gpui reports a wheel notch as 3 lines; Flutter on Linux scrolls 53 px per notch.
 const WHEEL_LINE_PX: f64 = 53.0 / 3.0;
 const DEFAULT_TEXT: f32 = 13.0;
+const FIT_EPSILON: f64 = 0.001;
 
 thread_local! {
     static SCALE: Cell<f32> = const { Cell::new(1.0) };
+    static FIT_OUTER: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
 }
 
 pub fn scale() -> f32 {
@@ -50,7 +52,12 @@ pub struct ZoomState {
     reported: f64,
     settle: Option<Task<()>>,
     grab: Option<Point<Pixels>>,
+    space: bool,
+    focus: Option<FocusHandle>,
+    blur: Option<Subscription>,
     moved: bool,
+    force_report: bool,
+    reported_fit: f64,
     content: Option<(FitSlot, BoxFit, (f64, f64))>,
 }
 
@@ -64,7 +71,12 @@ impl Default for ZoomState {
             reported: 1.0,
             settle: None,
             grab: None,
+            space: false,
+            focus: None,
+            blur: None,
             moved: false,
+            force_report: false,
+            reported_fit: 1.0,
             content: None,
         }
     }
@@ -73,6 +85,10 @@ impl Default for ZoomState {
 pub type ZoomSlot = Rc<RefCell<ZoomState>>;
 
 impl ZoomState {
+    pub fn release_space(&mut self) {
+        self.space = false;
+    }
+
     fn size(&self) -> (f64, f64) {
         self.bounds.map_or((0.0, 0.0), |b| (f64::from(f32::from(b.size.width)), f64::from(f32::from(b.size.height))))
     }
@@ -111,6 +127,13 @@ impl ZoomState {
         Some(fitted_placement(*fit, *align, (f64::from(natural.0), f64::from(natural.1)), self.size()))
     }
 
+    pub fn fit_scale(&self) -> f64 {
+        let Some((slot, fit, _)) = self.content.as_ref() else { return 1.0 };
+        let Some(natural) = slot.borrow().natural else { return 1.0 };
+        let s = fitted_scale(*fit, (f64::from(natural.0), f64::from(natural.1)), self.size());
+        if s > 0.0 { s } else { 1.0 }
+    }
+
     pub fn current(&mut self, now: Instant) -> Transform {
         if let Some((start, from, to)) = self.anim {
             let t = now.duration_since(start).as_secs_f64() / Duration::from_millis(ANIMATION_MS).as_secs_f64();
@@ -147,7 +170,8 @@ impl ZoomState {
     }
 
     pub fn drag(&mut self, to: Point<Pixels>) -> bool {
-        let Some(from) = self.grab.replace(to) else { return false };
+        let Some(from) = self.grab else { return false };
+        self.grab = Some(to);
         let (dx, dy) = (f64::from(f32::from(to.x - from.x)), f64::from(f32::from(to.y - from.y)));
         let m = pan(self.matrix, dx, dy, self.size());
         let changed = m != self.matrix;
@@ -157,9 +181,10 @@ impl ZoomState {
 
     pub fn settled(&mut self) -> Option<f64> {
         let s = self.matrix.scale;
-        if !should_report(s, self.reported) {
+        if !std::mem::take(&mut self.force_report) && !should_report(s, self.reported) {
             return None;
         }
+        self.reported_fit = self.fit_scale();
         self.reported = s;
         Some(s)
     }
@@ -186,16 +211,16 @@ impl Reporter {
         let (events, move_events) = (self.events.clone(), self.move_events.clone());
         let task = cx.spawn(async move |cx| {
             cx.background_executor().timer(Duration::from_millis(SETTLE_MS)).await;
-            let (scale, moved) = {
+            let (scale, moved, fit) = {
                 let mut st = slot.borrow_mut();
-                (st.settled(), st.settled_move())
+                (st.settled(), st.settled_move(), st.fit_scale())
             };
             cx.update_window(window, |_, window, cx| {
                 if let Some(scale) = scale.filter(|_| !events.is_empty()) {
-                    fire(&sink, &events, &zoom_extra(scale), window, cx);
+                    fire(&sink, &events, &zoom_extra(scale, fit), window, cx);
                 }
                 if let Some(m) = moved.filter(|_| !move_events.is_empty()) {
-                    fire(&sink, &move_events, &move_extra(m), window, cx);
+                    fire(&sink, &move_events, &move_extra(m, fit), window, cx);
                 }
             })
             .ok();
@@ -228,14 +253,25 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
         Local::FittedBox(f) => Some((states.fits.peek(), f.fit, super::style::align_axes(&f.alignment))),
         _ => None,
     });
-    let m = {
+    let scope = states.key_scope.borrow().clone();
+    let fitted_child = content.is_some();
+    let (m, viewport) = {
         let mut st = slot.borrow_mut();
         st.content = content;
+        if scope.is_some() {
+            st.focus = None;
+            st.blur = None;
+        } else if st.focus.is_none() {
+            st.focus = states.take_focus();
+        }
         st.command(z.command.as_deref(), z.focus, z.command_rev, z.max_scale, now);
-        st.current(now)
+        (st.current(now), st.bounds.map(|b| (f32::from(b.size.width), f32::from(b.size.height))))
     };
     let s = m.scale as f32;
+    // the FittedBox child would otherwise size itself from last frame's layer and lag a frame behind every zoom step
+    FIT_OUTER.set(viewport.filter(|_| fitted_child).map(|(w, h)| (w * s, h * s)));
     let inner = with_scale(s, || cx.within(true, |cx| optional(cx, z.child, Fit::BOTH)));
+    FIT_OUTER.set(None);
     let mut layer = cx.within(false, |cx| cx.el()).absolute().left(px(m.x as f32)).top(px(m.y as f32));
     layer = layer.w(relative(s)).h(relative(s)).text_size(px(DEFAULT_TEXT * s)).flex().flex_col();
     if let Some(i) = inner {
@@ -256,12 +292,18 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             let mut st = probe_slot.borrow_mut();
             let resized = st.bounds.map(|b| b.size) != Some(bounds.size);
             st.bounds = Some(bounds);
+            let fit_changed = !st.force_report && (st.fit_scale() - st.reported_fit).abs() > FIT_EPSILON;
+            st.force_report |= resized || fit_changed;
+            let resized = resized || fit_changed;
             let animating = st.animating();
             drop(st);
             if animating {
                 window.request_animation_frame();
+            }
+            if animating || resized {
                 probe_reporter.changed(window.window_handle(), cx);
-            } else if resized {
+            }
+            if resized && !animating {
                 refresh_after_draw(window, cx);
             }
         },
@@ -296,29 +338,79 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             wheel_rep.changed(window.window_handle(), app);
         }
     });
-    let down_slot = slot.clone();
-    el = el.on_mouse_down(MouseButton::Left, move |e, _, _| {
-        let mut st = down_slot.borrow_mut();
-        st.anim = None;
-        st.grab = Some(e.position);
-    });
-    let (move_slot, move_rep) = (slot.clone(), reporter);
-    el = el.on_mouse_move(move |e, window, app| {
-        if e.pressed_button != Some(MouseButton::Left) {
+    let buttons = z.pan_buttons.clone();
+    for (button, pan) in [(MouseButton::Left, PanButton::Left), (MouseButton::Middle, PanButton::Middle)] {
+        let (down_slot, allowed, listener) = (slot.clone(), buttons.clone(), scope.clone());
+        el = el.on_mouse_down(button, move |e, window, app| {
+            let listener_space = listener.as_ref().is_some_and(|l| l.borrow().space_held(window));
+            let pans = {
+                let mut st = down_slot.borrow_mut();
+                if !st.focus.as_ref().is_some_and(|h| h.contains_focused(window, app)) {
+                    st.space = false;
+                }
+                allowed.contains(&pan) || (pan == PanButton::Left && (st.space || listener_space))
+            };
+            if !pans {
+                return;
+            }
+            if listener.is_some() {
+                let mut st = down_slot.borrow_mut();
+                st.anim = None;
+                st.grab = Some(e.position);
+                return;
+            }
+            let handle = {
+                let mut st = down_slot.borrow_mut();
+                st.anim = None;
+                st.grab = Some(e.position);
+                let handle = st.focus.get_or_insert_with(|| app.focus_handle()).clone();
+                if st.blur.is_none() {
+                    let blur_slot = down_slot.clone();
+                    st.blur = Some(window.on_focus_out(&handle, app, move |_, _, _| {
+                        blur_slot.borrow_mut().space = false;
+                    }));
+                }
+                handle
+            };
+            if !handle.contains_focused(window, app) {
+                window.focus(&handle);
+            }
+        });
+        let up_slot = slot.clone();
+        el = el.on_mouse_up(button, move |_, _, _| up_slot.borrow_mut().grab = None);
+    }
+    let key_focus = slot.borrow().focus.clone();
+    if let Some(handle) = key_focus {
+        let (key_down, key_up, own) = (slot.clone(), slot.clone(), handle.clone());
+        el = el
+            .track_focus(&handle)
+            .on_key_down(move |e, window, _| {
+                if e.keystroke.key == "space" && own.is_focused(window) {
+                    key_down.borrow_mut().space = true;
+                }
+            })
+            .on_key_up(move |e, _, _| {
+                if e.keystroke.key == "space" {
+                    key_up.borrow_mut().space = false;
+                }
+            });
+    }
+    let (move_slot, move_rep) = (slot, reporter);
+    el.on_mouse_move(move |e, window, app| {
+        if !matches!(e.pressed_button, Some(MouseButton::Left | MouseButton::Middle)) {
             return;
         }
         if move_slot.borrow_mut().drag(e.position) {
             move_rep.changed(window.window_handle(), app);
         }
-    });
-    let up_slot = slot;
-    el.on_mouse_up(MouseButton::Left, move |_, _, _| up_slot.borrow_mut().grab = None)
+    })
 }
 
 #[derive(Default)]
 pub struct FitState {
     outer: Option<(f32, f32)>,
     natural: Option<(f32, f32)>,
+    used: f32,
 }
 
 pub type FitSlot = Rc<RefCell<FitState>>;
@@ -326,9 +418,10 @@ pub type FitSlot = Rc<RefCell<FitState>>;
 pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
     let Some(states) = cx.widgets else { return optional(cx, f.child, fit).unwrap_or_else(|| cx.el()) };
     let slot = states.fits.next();
+    let hint = FIT_OUTER.take();
     let (outer, natural) = {
         let st = slot.borrow();
-        (st.outer, st.natural)
+        (hint.or(st.outer), st.natural)
     };
     let s = match (outer, natural) {
         (Some(o), Some(n)) => {
@@ -336,6 +429,7 @@ pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
         }
         _ => scale(),
     };
+    slot.borrow_mut().used = s;
     let inner = with_scale(s, || cx.within(false, |cx| optional(cx, f.child, Fit { w: false, h: false })));
     let (ax, ay) = super::style::align_axes(&f.alignment);
     let (left, top) = match (outer, natural) {
@@ -376,7 +470,9 @@ pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
             let mut st = slot.borrow_mut();
             if st.outer != Some(o) {
                 st.outer = Some(o);
-                refresh_after_draw(window, cx);
+                if hint.is_none() {
+                    refresh_after_draw(window, cx);
+                }
             }
         },
         |_, _, _, _| {},

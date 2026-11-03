@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point, px, size,
+    Bounds, Modifiers, MouseButton, Pixels, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext, point, px, size,
 };
 use mx_theme::{Typography, default_theme};
 
@@ -11,8 +11,16 @@ const PLAN: &str = r#"ZoomView(maxScale: 6.0, child: FittedBox(fit: "contain",
   child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
 
 fn open(cx: &mut TestAppContext) -> &mut VisualTestContext {
-    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {PLAN};");
-    let (_, vcx) = cx.add_window_view(move |_, _| {
+    open_plan(cx, PLAN)
+}
+
+fn open_plan<'a>(cx: &'a mut TestAppContext, plan: &str) -> &'a mut VisualTestContext {
+    open_view(cx, plan).1
+}
+
+fn open_view<'a>(cx: &'a mut TestAppContext, plan: &str) -> (gpui::Entity<RfwView>, &'a mut VisualTestContext) {
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
+    let (view, vcx) = cx.add_window_view(move |_, _| {
         let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, Rc::new(|_, _, _| {}));
         v.set_library(&library);
         v.set_root("root");
@@ -20,7 +28,7 @@ fn open(cx: &mut TestAppContext) -> &mut VisualTestContext {
     });
     vcx.simulate_resize(size(px(560.0), px(400.0)));
     vcx.run_until_parked();
-    vcx
+    (view, vcx)
 }
 
 fn label(cx: &mut VisualTestContext) -> Bounds<Pixels> {
@@ -100,4 +108,254 @@ fn a_programmatic_command_discards_a_pending_user_move() {
     st.command(Some("focus"), Some((0.5, 0.5, 0.25, 0.25)), 1, 6.0, t0);
     st.current(t0 + Duration::from_secs(1));
     assert_eq!(st.settled_move(), None);
+}
+
+const MIDDLE_ONLY: &str = r#"ZoomView(maxScale: 6.0, panButtons: ["middle"], child: FittedBox(fit: "contain",
+  child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
+
+fn drag(cx: &mut VisualTestContext, button: MouseButton, from: gpui::Point<Pixels>) -> Bounds<Pixels> {
+    let none = Modifiers::default();
+    cx.simulate_mouse_down(from, button, none);
+    cx.simulate_mouse_move(from + point(px(40.), px(0.)), button, none);
+    cx.simulate_mouse_up(from + point(px(40.), px(0.)), button, none);
+    label(cx)
+}
+
+#[gpui::test]
+fn pan_buttons_gate_which_button_drags_and_space_always_pans_with_left(cx: &mut TestAppContext) {
+    let cx = open_plan(cx, MIDDLE_ONLY);
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    let start = label(cx);
+    let left = drag(cx, MouseButton::Left, at);
+    assert_eq!(left.origin.x, start.origin.x, "left must not pan with panButtons: [middle]");
+    let middle = drag(cx, MouseButton::Middle, at);
+    assert!(f32::from(middle.origin.x - start.origin.x) > 30.0, "{start:?} -> {middle:?}");
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space.clone(), is_held: false, ime_commit: false });
+    let before = label(cx);
+    let spaced = drag(cx, MouseButton::Left, at);
+    assert!(f32::from(spaced.origin.x - before.origin.x) > 30.0, "{before:?} -> {spaced:?}");
+    cx.simulate_event(gpui::KeyUpEvent { keystroke: space });
+    let after = label(cx);
+    let released = drag(cx, MouseButton::Left, at);
+    assert_eq!(released.origin.x, after.origin.x, "releasing space ends the left-pan");
+}
+
+#[gpui::test]
+fn default_pan_buttons_keep_the_left_drag(cx: &mut TestAppContext) {
+    let cx = open(cx);
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    let start = label(cx);
+    let left = drag(cx, MouseButton::Left, at);
+    assert!(f32::from(left.origin.x - start.origin.x) > 30.0, "{start:?} -> {left:?}");
+}
+
+#[gpui::test]
+fn space_is_released_when_the_view_loses_focus(cx: &mut TestAppContext) {
+    let cx = open_plan(cx, MIDDLE_ONLY);
+    cx.update(|window, _| window.activate_window());
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    drag(cx, MouseButton::Middle, at);
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space, is_held: false, ime_commit: false });
+    cx.update(|window, app| {
+        let elsewhere = app.focus_handle();
+        window.focus(&elsewhere);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    let before = label(cx);
+    let after = drag(cx, MouseButton::Left, at);
+    assert_eq!(after.origin.x, before.origin.x, "a stale space must not pan with panButtons: [middle]");
+}
+
+#[gpui::test]
+fn space_cleared_on_window_deactivate(cx: &mut TestAppContext) {
+    let (view, cx) = open_view(cx, MIDDLE_ONLY);
+    cx.update(|window, _| window.activate_window());
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    drag(cx, MouseButton::Middle, at);
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space, is_held: false, ime_commit: false });
+    let held = |cx: &mut VisualTestContext| {
+        let mut held = false;
+        view.read_with(cx, |v, _| v.widget_states().zooms.each(|z| held |= z.space));
+        held
+    };
+    assert!(held(cx), "space must be held before the window loses activation");
+    view.read_with(cx, |v, _| v.widget_states().zooms.each(|z| z.blur = None));
+    cx.deactivate_window();
+    assert!(!held(cx), "deactivating the window must release space even without a focus-out");
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    let before = label(cx);
+    let after = drag(cx, MouseButton::Left, at);
+    assert_eq!(after.origin.x, before.origin.x, "a space released outside the window must not keep panning");
+}
+
+#[gpui::test]
+fn a_focusable_child_keeps_focus_when_clicked(cx: &mut TestAppContext) {
+    let plan = r#"ZoomView(maxScale: 6.0, child: Column(children: [TextInput(id: "chat")]))"#;
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
+    let (view, cx) = cx.add_window_view(move |_, _| {
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, Rc::new(|_, _, _| {}));
+        v.set_library(&library);
+        v.set_root("root");
+        v
+    });
+    cx.simulate_resize(size(px(560.0), px(400.0)));
+    cx.run_until_parked();
+    let field = view.read_with(cx, |v, _| v.text_field("chat")).expect("no TextInput");
+    let at = point(px(100.), px(20.));
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::default());
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::default());
+    cx.run_until_parked();
+    let focused = cx.update(|window, app| field.read(app).focus.is_focused(window));
+    assert!(focused, "the zoom view must not take focus from the TextInput under the pointer");
+}
+
+fn zoomed_state() -> super::ZoomState {
+    let bounds = Bounds::new(point(px(0.), px(0.)), size(px(1000.), px(800.)));
+    let mut st = super::ZoomState { bounds: Some(bounds), ..Default::default() };
+    st.wheel(point(px(500.), px(400.)), -100.0, 6.0);
+    st
+}
+
+#[test]
+fn drag_without_grab_never_pans() {
+    let mut st = zoomed_state();
+    let before = st.matrix;
+    for p in [point(px(10.), px(10.)), point(px(30.), px(25.)), point(px(60.), px(50.))] {
+        assert!(!st.drag(p));
+        assert_eq!(st.matrix, before);
+    }
+}
+
+#[test]
+fn drag_after_grab_pans() {
+    let mut st = zoomed_state();
+    let before = st.matrix;
+    st.grab = Some(point(px(100.), px(100.)));
+    assert!(st.drag(point(px(110.), px(105.))));
+    assert!((st.matrix.x - before.x - 10.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
+    assert!((st.matrix.y - before.y - 5.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
+}
+
+#[test]
+fn zoom_extra_has_fit() {
+    use mx_rfw::widgets::zoom_view::{BoxFit, fitted_scale};
+    let slot = Rc::new(std::cell::RefCell::new(super::FitState::default()));
+    slot.borrow_mut().natural = Some((280.0, 140.0));
+    let bounds = Bounds::new(point(px(0.), px(0.)), size(px(560.), px(400.)));
+    let st = super::ZoomState { bounds: Some(bounds), content: Some((slot, BoxFit::Contain, (0.0, 0.0))), ..Default::default() };
+    let expected = fitted_scale(BoxFit::Contain, (280.0, 140.0), (560.0, 400.0));
+    assert!(expected > 0.0);
+    assert_eq!(st.fit_scale(), expected);
+    let extra = mx_rfw::widgets::zoom_view::zoom_extra(1.5, st.fit_scale());
+    assert_eq!(extra.get("fit"), Some(&mx_rfw::Value::Double(expected)));
+    assert_eq!(super::ZoomState::default().fit_scale(), 1.0);
+}
+
+#[gpui::test]
+fn on_zoom_fires_after_first_layout_and_resize(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    let seen: Rc<RefCell<Vec<serde_json::Map<String, serde_json::Value>>>> = Rc::default();
+    let sink_seen = seen.clone();
+    let plan = r#"ZoomView(maxScale: 6.0, onZoom: event "z" {}, child: FittedBox(fit: "contain",
+  child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
+    let (_view, vcx) = cx.add_window_view(move |_, _| {
+        let sink = Rc::new(move |a: crate::rfw_view::ViewAction, _: &mut gpui::Window, _: &mut gpui::App| {
+            sink_seen.borrow_mut().push(a.values);
+        });
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, sink);
+        v.set_library(&library);
+        v.set_root("root");
+        v
+    });
+    vcx.simulate_resize(size(px(560.0), px(400.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let first = seen.borrow().clone();
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert_eq!(first[0].get("scale").and_then(|v| v.as_f64()), Some(1.0));
+    assert!(first[0].get("fit").and_then(|v| v.as_f64()).is_some_and(|f| f > 0.0), "{first:?}");
+    vcx.simulate_resize(size(px(300.0), px(300.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let all = seen.borrow().clone();
+    assert_eq!(all.len(), 2, "{all:?}");
+    let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
+    assert!(fits[0] != fits[1], "{fits:?}");
+}
+
+#[gpui::test]
+fn on_zoom_fires_again_when_the_content_resizes(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    let seen: Rc<RefCell<Vec<serde_json::Map<String, serde_json::Value>>>> = Rc::default();
+    let sink_seen = seen.clone();
+    let lib = |h: f32| {
+        format!(
+            "import core.widgets;\nimport maestria;\nwidget root = ZoomView(maxScale: 6.0, onZoom: event \"z\" {{}}, child: FittedBox(fit: \"contain\", child: SizedBox(width: 280.0, height: {h:.1}, child: Center(child: Text(text: \"planta\")))));"
+        )
+    };
+    let first = lib(140.0);
+    let (view, vcx) = cx.add_window_view(move |_, _| {
+        let sink = Rc::new(move |a: crate::rfw_view::ViewAction, _: &mut gpui::Window, _: &mut gpui::App| {
+            sink_seen.borrow_mut().push(a.values);
+        });
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, sink);
+        v.set_library(&first);
+        v.set_root("root");
+        v
+    });
+    vcx.simulate_resize(size(px(560.0), px(400.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    assert_eq!(seen.borrow().len(), 1, "{:?}", seen.borrow());
+    let taller = lib(700.0);
+    view.update(vcx, |v, cx| {
+        v.set_library(&taller);
+        cx.notify();
+    });
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let all = seen.borrow().clone();
+    assert_eq!(all.len(), 2, "{all:?}");
+    let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
+    assert!(fits[0] != fits[1], "{fits:?}");
+}
+
+#[gpui::test]
+fn a_fitted_child_follows_the_zoom_in_the_same_frame(cx: &mut TestAppContext) {
+    use mx_rfw::widgets::zoom_view::{BoxFit, Transform, fitted_scale};
+    let (view, cx) = open_view(cx, PLAN);
+    let (used, wanted) = cx.update(|window, app| {
+        view.update(app, |v, _| v.widget_states().zooms.each(|z| z.matrix = Transform { scale: 2.0, x: -140.0, y: -100.0 }));
+        window.refresh();
+        window.draw(app).clear();
+        let mut seen = (0.0, 0.0);
+        view.read(app).widget_states().fits.each(|f| {
+            let (o, n) = (f.outer.unwrap(), f.natural.unwrap());
+            seen = (f.used, fitted_scale(BoxFit::Contain, (f64::from(n.0), f64::from(n.1)), (f64::from(o.0), f64::from(o.1))) as f32);
+        });
+        seen
+    });
+    assert!((used - wanted).abs() / wanted < 0.01, "drawn at {used}, the zoomed box wants {wanted}");
 }
