@@ -91,6 +91,14 @@ pub(crate) fn is_true(p: &Obj, key: &str) -> bool {
     p.get(key) == Some(&Value::Bool(true))
 }
 
+pub(crate) fn windows_flag(p: &Obj) -> Result<Option<bool>, RpcError> {
+    match p.get("windows") {
+        None => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(_) => Err(RpcError::invalid("\"windows\" é true ou false")),
+    }
+}
+
 pub(crate) fn badge(p: &Obj) -> BadgeUpdate {
     match p.get("badge") {
         None => BadgeUpdate::Unchanged,

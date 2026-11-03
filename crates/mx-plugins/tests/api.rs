@@ -130,9 +130,22 @@ async fn sidebar_update_needs_the_contribution_stringifies_the_badge_and_keeps_b
     assert_eq!(out.unwrap().to_string(), r#"{"shown":false}"#);
     let (_, h2) = call(FakeHost::default(), &git, "sidebar.update", json!({"badge": null})).await;
     let (_, h3) = call(FakeHost::default(), &git, "sidebar.update", json!({})).await;
-    assert_eq!(host.calls(), ["sidebar Set(\"3\") 1"]);
-    assert_eq!(h2.calls(), ["sidebar Clear 0"]);
-    assert_eq!(h3.calls(), ["sidebar Unchanged 0"]);
+    assert_eq!(host.calls(), ["sidebar Set(\"3\") 1 None"]);
+    assert_eq!(h2.calls(), ["sidebar Clear 0 None"]);
+    assert_eq!(h3.calls(), ["sidebar Unchanged 0 None"]);
+}
+
+#[tokio::test]
+async fn sidebar_update_windows_is_an_optional_bool() {
+    let git = info(json!({"id": "git", "version": "1", "main": ["x"], "contributes": {"sidebar": true}}));
+    let (_, off) = call(FakeHost::default(), &git, "sidebar.update", json!({"windows": false})).await;
+    let (_, on) = call(FakeHost::default(), &git, "sidebar.update", json!({"windows": true})).await;
+    assert_eq!(off.calls(), ["sidebar Unchanged 0 Some(false)"]);
+    assert_eq!(on.calls(), ["sidebar Unchanged 0 Some(true)"]);
+    for bad in [json!("não"), json!(0), json!(null)] {
+        let e = run(&git, "sidebar.update", json!({"windows": bad})).await.unwrap_err();
+        assert_eq!(e, RpcError::invalid("\"windows\" é true ou false"));
+    }
 }
 
 #[tokio::test]

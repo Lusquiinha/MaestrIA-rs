@@ -5,7 +5,7 @@ use mx_core::json::Obj;
 use mx_core::ports::BoxFuture;
 use serde_json::{Map, Value};
 
-use super::params::{badge, blocks_from, blocks_if_present, is_true, opt_num, opt_text, text};
+use super::params::{badge, windows_flag, blocks_from, blocks_if_present, is_true, opt_num, opt_text, text};
 use super::dispatch_sessions::dispatch_sessions;
 use super::{
     FloatContent, OpenShell, PluginHostApi, RpcError, SidebarUpdate, SuggestionCreated, ViewOpen, ViewUpdate,
@@ -227,8 +227,12 @@ async fn dispatch_views(
             if !p.manifest.as_ref().is_some_and(|m| m.sidebar) {
                 return Err(RpcError::invalid("o manifesto não declara \"contributes.sidebar\""));
             }
-            let request =
-                SidebarUpdate { blocks: blocks_if_present(params), rfw: parse_rfw(params)?, badge: badge(params) };
+            let request = SidebarUpdate {
+                blocks: blocks_if_present(params),
+                rfw: parse_rfw(params)?,
+                badge: badge(params),
+                windows: windows_flag(params)?,
+            };
             let shown = api.sidebar_update(p, request).await?;
             Ok(obj(&[("shown", Value::from(shown))]))
         }

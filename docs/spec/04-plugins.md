@@ -409,7 +409,7 @@ Params validated by `_text(key)` are required strings (`"<key>" é obrigatório`
 | `view.appendLines` | `viewId`*, `id`*, `lines` | `{open: bool}` | `viewId:"sidebar"` targets sidebar tab |
 | `view.clearLines` | `viewId`*, `id`* | `null` | |
 | `view.close` | `viewId`* | `null` | closes tab or modal |
-| `sidebar.update` | `blocks?`, `rfw?`, `data?`, `badge?` | `{shown: bool}` | requires `contributes.sidebar` else -32602 `o manifesto não declara "contributes.sidebar"` |
+| `sidebar.update` | `blocks?`, `rfw?`, `data?`, `badge?`, `windows?` | `{shown: bool}` | requires `contributes.sidebar` else -32602 `o manifesto não declara "contributes.sidebar"` |
 | `float.show` | `id`*, `width?`, `height?`, `corner?`, `rfw?`, `data?`, `blocks?` | `{shown: true}` | bad corner → -32602 `"corner" é topLeft, topRight, bottomLeft ou bottomRight` |
 | `float.update` | `id`*, `width?`, `height?`, `rfw?`, `data?`, `blocks?` | `{shown: bool}` | |
 | `float.hide` | `id`* | `null` | |
@@ -1665,7 +1665,9 @@ order; drag-to-reorder. Icon badge priority: busy → accent dot; plugin badge (
 → text pill; open windows (views + owned terminals) count when tab not current. Tooltip
 `<name> — <n> janela(s) aberta(s)`. Clicking the current tab's icon hides the sidebar.
 
-`sidebar.update(blocks?, rfw?, badge?)`: `badge` key absent → unchanged; `null` or `""` → removed;
+`sidebar.update(blocks?, rfw?, badge?, windows?)`: `windows` is an optional bool (default true): `false`
+hides the automatic `Janelas` ruler + list above the plugin's own tab; it sticks until a later update sets
+it again (absent → unchanged); non-bool → -32602 `"windows" é true ou false`. `badge` key absent → unchanged; `null` or `""` → removed;
 other → `"$badge"`. If no blocks and no rfw → just badge; returns `{shown}` (= this plugin's tab is
 the live one). Otherwise get-or-create the sidebar tab (`sidebar:<id>`, view id `sidebar`), apply rfw,
 then blocks (clearing rfw). Tab layout: open views of the plugin listed on top (`Janelas` ruler) then

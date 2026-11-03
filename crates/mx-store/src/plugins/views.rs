@@ -195,6 +195,15 @@ impl Store {
                 self.plugin.badges.insert(p.id.clone(), b);
             }
         }
+        match req.windows {
+            Some(false) => {
+                self.plugin.hide_windows.insert(p.id.clone());
+            }
+            Some(true) => {
+                self.plugin.hide_windows.remove(&p.id);
+            }
+            None => {}
+        }
         if req.blocks.is_some() || req.rfw.is_some() {
             let name = p.name().to_owned();
             let v = self
@@ -251,6 +260,7 @@ impl Store {
         self.plugin.floats.drop_plugin(plugin);
         self.plugin.sidebars.remove(plugin);
         self.plugin.badges.remove(plugin);
+        self.plugin.hide_windows.remove(plugin);
         self.mark(Areas::PLUGINS);
     }
 

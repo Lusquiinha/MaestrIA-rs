@@ -84,6 +84,7 @@ pub struct SidebarUpdate {
     pub blocks: Option<Vec<Obj>>,
     pub rfw: Option<RfwUpdate>,
     pub badge: BadgeUpdate,
+    pub windows: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
