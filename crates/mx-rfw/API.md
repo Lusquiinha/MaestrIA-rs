@@ -78,5 +78,5 @@ No UI dependency; the renderer (mx-app) matches on `widgets::Local` and draws.
   scaleFactor 200, 220 ms command animation, onZoom 200 ms after settling when |Δscale| ≥ 0.005).
   `ZoomView.focus` ({x,y,w,h} child fractions) → `focus_transform(size, rect, max)` (10% margin), mapped through
   `fitted_placement` + `focus_in_placement` under a FittedBox; `on_move` gets `move_extra(m)` = `{scale, x, y}`.
-  `ZoomView.panButtons` (`["left","middle"]` default) → `pan_buttons: Vec<PanButton>`; Space + left-drag always pans.
+  `ZoomView.panButtons` (`["left","middle"]` default) → `pan_buttons: Vec<PanButton>`; Space + left-drag always pans; Space resets on focus-out and on window (de)activation.
 - `text_input::{ClearSeen, completed}` — `clear` empties a field only when it changes after the first sight.

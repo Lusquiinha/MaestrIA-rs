@@ -1091,10 +1091,10 @@ Notation: `name: decoder = default`. "USED" lists what the real files pass.
 **KeyListener** (Rust port only; capability `keyListener: 1`)
 - Reads: `keys: List<String>` (non-strings skipped), `onKey: handler`, `child: optionalChild`.
 - Key spelling is the command `key` syntax (`ctrl`, `alt`, `shift`, `meta` joined by `+`, then the key): `ctrl+c`, `escape`, `ctrl+0`, `ctrl+=`, `ctrl+-`, `ctrl+plus` (the `+` key). Modifiers must match exactly: `ctrl+c` fires on Ctrl+C, not on Ctrl+Shift+C. `meta` is the Super/⌘ key, not Ctrl. Unparsable entries are ignored.
-- Focus: any mouse press inside it (any button, even one a child stops) focuses the listener unless the focus is already inside it, so a click that selects something on a canvas focuses it; a focusable child (`TextInput`) still takes the focus of its own press.
+- Focus: any mouse press inside it (any button, even one a child stops) focuses the listener unless the focus is already inside it, so a click that selects something on a canvas focuses it; a focusable child (`TextInput`) still takes the focus of its own press. Focusing the pane (first click on a pane, tab switch) keeps a focus that is already inside the pane, so the listener keeps it.
 - A key-down matching one of `keys` while the focus is inside the listener fires `onKey` with extra `{key: "<chord as declared>"}` and is consumed; other keys pass through. Nothing fires while a text field (`TextInput`, `CodeEditor`) or a terminal holds the focus, so a focused `TextInput` keeps Ctrl+C.
 - Declared chords win over the app shortcuts while it has the focus: Ctrl+0/=/- do not zoom the app then.
-- Space held while the listener itself has the focus lets a left-drag pan any `ZoomView` inside it (whatever its `panButtons`).
+- Space held while the listener itself has the focus lets a left-drag pan any `ZoomView` inside it (whatever its `panButtons`). Space counts as released when the focus leaves the listener or the window is activated or deactivated (also for a `ZoomView`'s own Space).
 
 ##### C.4 Decoders reachable from the used widgets and arguments
 

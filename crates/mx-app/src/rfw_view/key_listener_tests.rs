@@ -212,3 +212,70 @@ fn a_press_that_a_child_stops_still_focuses_the_listener(cx: &mut TestAppContext
     key(cx, "c", Modifiers::control());
     assert_eq!(keys_seen(&seen), ["key:ctrl+c"]);
 }
+
+struct Pane {
+    pane: FocusHandle,
+    rfw: Entity<RfwView>,
+}
+
+impl Render for Pane {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().track_focus(&self.pane).child(self.rfw.clone())
+    }
+}
+
+#[gpui::test]
+fn first_click_keeps_focus_inside_listener(cx: &mut TestAppContext) {
+    let seen = Seen::default();
+    let (pane, cx) = cx.add_window_view({
+        let seen = seen.clone();
+        move |_, cx| Pane { pane: cx.focus_handle(), rfw: rfw(CANVAS, &seen, cx) }
+    });
+    cx.simulate_resize(size(px(560.0), px(400.0)));
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    let handle = pane.read_with(cx, |p, _| p.pane.clone());
+    let at = label(cx).center();
+    click(cx, at);
+    cx.update(|window, app| crate::panes::focus_unless_inside(&handle, window, app));
+    cx.run_until_parked();
+    assert!(cx.update(|window, app| handle.contains_focused(window, app)), "focus must stay in the pane");
+    assert!(!cx.update(|window, _| handle.is_focused(window)), "the pane wrapper must not take focus from the listener");
+    key(cx, "c", Modifiers::control());
+    assert_eq!(keys_seen(&seen), ["key:ctrl+c"]);
+}
+
+#[gpui::test]
+fn listener_space_cleared_on_window_deactivate(cx: &mut TestAppContext) {
+    let seen = Seen::default();
+    let (split, cx) = open(cx, CANVAS, &seen);
+    let at = label(cx).center();
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: at,
+            delta: gpui::ScrollDelta::Lines(point(0.0, 3.0)),
+            ..Default::default()
+        });
+        cx.run_until_parked();
+    }
+    click(cx, at);
+    cx.simulate_event(KeyDownEvent { keystroke: stroke("space", Modifiers::none()), is_held: false, ime_commit: false });
+    let rfw = split.read_with(cx, |s, _| s.rfw.clone());
+    let held = |cx: &mut VisualTestContext| {
+        let mut held = false;
+        rfw.read_with(cx, |v, _| v.widget_states().keys.each(|k| held |= k.space));
+        held
+    };
+    assert!(held(cx), "space must be held before the window loses activation");
+    rfw.read_with(cx, |v, _| v.widget_states().keys.each(|k| k.blur = None));
+    cx.deactivate_window();
+    assert!(!held(cx), "deactivating the window must release space even without a focus-out");
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    let before = label(cx);
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(at + point(px(40.), px(0.)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_up(at + point(px(40.), px(0.)), MouseButton::Left, Modifiers::none());
+    let after = label(cx);
+    assert_eq!(after.origin.x, before.origin.x, "a space released outside the window must not keep panning");
+}

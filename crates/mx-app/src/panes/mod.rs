@@ -31,6 +31,12 @@ use crate::plugin_ui::surface::SurfaceEnv;
 
 pub use terminals::Terminals;
 
+pub(crate) fn focus_unless_inside(handle: &FocusHandle, window: &mut Window, cx: &App) {
+    if !handle.contains_focused(window, cx) {
+        window.focus(handle);
+    }
+}
+
 pub struct PaneArea {
     host: Entity<StoreHost>,
     terminals: Terminals,
@@ -162,7 +168,7 @@ impl PaneArea {
         self.focused = focused;
         self.focused_handle = handle.clone();
         if let Some(handle) = handle {
-            window.focus(&handle);
+            focus_unless_inside(&handle, window, cx);
         }
     }
 

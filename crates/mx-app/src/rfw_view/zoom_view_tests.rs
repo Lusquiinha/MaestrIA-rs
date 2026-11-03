@@ -15,8 +15,12 @@ fn open(cx: &mut TestAppContext) -> &mut VisualTestContext {
 }
 
 fn open_plan<'a>(cx: &'a mut TestAppContext, plan: &str) -> &'a mut VisualTestContext {
+    open_view(cx, plan).1
+}
+
+fn open_view<'a>(cx: &'a mut TestAppContext, plan: &str) -> (gpui::Entity<RfwView>, &'a mut VisualTestContext) {
     let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
-    let (_, vcx) = cx.add_window_view(move |_, _| {
+    let (view, vcx) = cx.add_window_view(move |_, _| {
         let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, Rc::new(|_, _, _| {}));
         v.set_library(&library);
         v.set_root("root");
@@ -24,7 +28,7 @@ fn open_plan<'a>(cx: &'a mut TestAppContext, plan: &str) -> &'a mut VisualTestCo
     });
     vcx.simulate_resize(size(px(560.0), px(400.0)));
     vcx.run_until_parked();
-    vcx
+    (view, vcx)
 }
 
 fn label(cx: &mut VisualTestContext) -> Bounds<Pixels> {
@@ -172,6 +176,33 @@ fn space_is_released_when_the_view_loses_focus(cx: &mut TestAppContext) {
     let before = label(cx);
     let after = drag(cx, MouseButton::Left, at);
     assert_eq!(after.origin.x, before.origin.x, "a stale space must not pan with panButtons: [middle]");
+}
+
+#[gpui::test]
+fn space_cleared_on_window_deactivate(cx: &mut TestAppContext) {
+    let (view, cx) = open_view(cx, MIDDLE_ONLY);
+    cx.update(|window, _| window.activate_window());
+    let at = label(cx).center();
+    for _ in 0..3 {
+        notches(cx, at, 3.0);
+    }
+    drag(cx, MouseButton::Middle, at);
+    let space = gpui::Keystroke::parse("space").unwrap();
+    cx.simulate_event(gpui::KeyDownEvent { keystroke: space, is_held: false, ime_commit: false });
+    let held = |cx: &mut VisualTestContext| {
+        let mut held = false;
+        view.read_with(cx, |v, _| v.widget_states().zooms.each(|z| held |= z.space));
+        held
+    };
+    assert!(held(cx), "space must be held before the window loses activation");
+    view.read_with(cx, |v, _| v.widget_states().zooms.each(|z| z.blur = None));
+    cx.deactivate_window();
+    assert!(!held(cx), "deactivating the window must release space even without a focus-out");
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    let before = label(cx);
+    let after = drag(cx, MouseButton::Left, at);
+    assert_eq!(after.origin.x, before.origin.x, "a space released outside the window must not keep panning");
 }
 
 #[gpui::test]

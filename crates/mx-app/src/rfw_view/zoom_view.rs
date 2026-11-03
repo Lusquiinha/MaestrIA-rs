@@ -79,6 +79,10 @@ impl Default for ZoomState {
 pub type ZoomSlot = Rc<RefCell<ZoomState>>;
 
 impl ZoomState {
+    pub fn release_space(&mut self) {
+        self.space = false;
+    }
+
     fn size(&self) -> (f64, f64) {
         self.bounds.map_or((0.0, 0.0), |b| (f64::from(f32::from(b.size.width)), f64::from(f32::from(b.size.height))))
     }

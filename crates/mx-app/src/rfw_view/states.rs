@@ -44,6 +44,12 @@ impl<T: Default> Slots<T> {
         items[i].clone()
     }
 
+    pub fn each(&self, mut f: impl FnMut(&mut T)) {
+        for item in self.items.borrow().iter() {
+            f(&mut item.borrow_mut());
+        }
+    }
+
     fn settle(&self) {
         self.items.borrow_mut().truncate(self.used.get());
         self.used.set(0);
@@ -108,6 +114,11 @@ impl WidgetStates {
         self.selections.settle();
         self.keys.settle();
         anchor::forget_unseen(self.owner, &self.anchors.borrow());
+    }
+
+    pub fn release_space(&self) {
+        self.zooms.each(super::zoom_view::ZoomState::release_space);
+        self.keys.each(super::key_listener::KeyListenerState::release_space);
     }
 
     pub fn take_focus(&self) -> Option<FocusHandle> {

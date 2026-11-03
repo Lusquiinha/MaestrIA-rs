@@ -24,6 +24,10 @@ pub struct KeyListenerState {
 pub type KeySlot = Rc<RefCell<KeyListenerState>>;
 
 impl KeyListenerState {
+    pub fn release_space(&mut self) {
+        self.space = false;
+    }
+
     pub fn space_held(&self, window: &Window) -> bool {
         self.space && self.focus.as_ref().is_some_and(|h| h.is_focused(window))
     }
