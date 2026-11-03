@@ -2,6 +2,7 @@
 
 mod app;
 mod chrome;
+mod diagnostics;
 mod keymap;
 mod panes;
 mod plugin_ui;
@@ -37,9 +38,10 @@ const FONTS: [&[u8]; 4] = [
 const DEMO_TERMINAL: &str = "MAESTRIA_DEMO_TERMINAL";
 
 fn main() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let mut args = std::env::args_os().skip(1);
     if args.next().is_some_and(|a| a == mx_term::ptyd::FLAG) {
+        // The app hands the daemon a stderr of its own, so it logs there and not to maestria.log.
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
         let Some(socket) = args.next() else {
             log::error!("{} needs the socket path", mx_term::ptyd::FLAG);
             std::process::exit(2);
@@ -50,6 +52,7 @@ fn main() {
         }
         return;
     }
+    diagnostics::install();
     Application::new().with_assets(app::assets::Assets).run(|cx: &mut App| {
         if let Err(err) = cx
             .text_system()
