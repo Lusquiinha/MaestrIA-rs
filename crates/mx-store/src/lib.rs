@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod active_tray;
 mod changes;
 mod drag;
 mod features;

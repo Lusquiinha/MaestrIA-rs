@@ -39,6 +39,7 @@ pub struct PanelMenu {
     pub can_hibernate: bool,
     pub close_chord: Option<String>,
     pub hotkey: Option<String>,
+    pub active_tray: Option<bool>,
 }
 
 fn item(label: impl Into<gpui::SharedString>, action: A, glyph: icon::Icon, tone: Tone) -> MenuItem<A> {
@@ -86,6 +87,13 @@ pub fn panel_menu(m: &PanelMenu) -> Entries {
             ("Prender o painel", icon::PUSH_PIN_OUTLINED, Tone::Dim)
         };
         out.push(item(label, A::TogglePin, g, tone).chord(m.pin_chord.clone()).into());
+    }
+    if let Some(on) = m.active_tray {
+        out.push(if on {
+            item("Tirar de \"Em andamento\"", A::SetActiveTray(false), icon::BOLT, Tone::Accent).into()
+        } else {
+            item("Pôr em \"Em andamento\"", A::SetActiveTray(true), icon::BOLT, Tone::Dim).into()
+        });
     }
     if m.can_group {
         out.push(item("Agrupar painéis", A::GroupPanes, icon::GRID_VIEW_ROUNDED, Tone::Dim).into());

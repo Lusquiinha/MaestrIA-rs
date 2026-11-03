@@ -154,6 +154,8 @@ pub struct Config {
     pub suggestions_to_plugin: bool,
     pub floats: Obj,
     pub groups_collapsed: bool,
+    pub active_tray: bool,
+    pub active_tray_collapsed: bool,
     pub hibernate_minutes: i64,
     pub auto_update: bool,
     pub theme: Option<String>,
@@ -181,6 +183,8 @@ impl Default for Config {
             suggestions_to_plugin: false,
             floats: Obj::new(),
             groups_collapsed: false,
+            active_tray: false,
+            active_tray_collapsed: false,
             hibernate_minutes: DEFAULT_HIBERNATE_MINUTES,
             auto_update: false,
             theme: None,
@@ -250,6 +254,8 @@ impl Config {
             m.insert("floats".into(), Value::Object(self.floats.clone()));
         }
         flag(&mut m, "groupsCollapsed", self.groups_collapsed);
+        flag(&mut m, "activeTray", self.active_tray);
+        flag(&mut m, "activeTrayCollapsed", self.active_tray_collapsed);
         if self.hibernate_minutes != DEFAULT_HIBERNATE_MINUTES {
             m.insert("hibernateMinutes".into(), json!(self.hibernate_minutes));
         }

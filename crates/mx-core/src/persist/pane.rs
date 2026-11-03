@@ -48,6 +48,7 @@ pub struct PaneEntry {
     pub suggestions: Vec<SuggestedTask>,
     pub done: bool,
     pub pinned: bool,
+    pub in_active_tray: bool,
     pub hotkey: Option<String>,
 }
 
@@ -95,6 +96,7 @@ impl PaneEntry {
                 .collect(),
             done: is_true(pane, "done"),
             pinned: is_true(pane, "pinned"),
+            in_active_tray: is_true(pane, "activeTray"),
             hotkey: owned("hotkey"),
         }
     }

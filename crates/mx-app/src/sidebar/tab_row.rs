@@ -17,6 +17,8 @@ use crate::chrome::anim::reveal::{reveal_offset, reveal_overlay};
 use crate::sidebar::glyph::tab_glyph;
 use crate::sidebar::widgets::{badge, mini_button};
 
+const TRAY: &str = "active-tray";
+
 pub struct TabRow {
     id: String,
     folder_root: String,
@@ -36,6 +38,7 @@ pub struct TabRow {
     tint: Option<TabTint>,
     group: Option<String>,
     revealed: bool,
+    in_tray: bool,
 }
 
 impl TabRow {
@@ -74,7 +77,16 @@ impl TabRow {
             tint: store.tint_of(&t.id),
             group: store.group_of(&t.id).map(|g| g.id.clone()),
             revealed,
+            in_tray: false,
         }
+    }
+
+    pub fn for_tray(store: &Store, mx: &Mx, t: &Tab) -> TabRow {
+        let mut row = TabRow::of(store, mx, t, Some(TRAY));
+        let folder = &store.folder_of(t).name;
+        row.subtitle = if row.subtitle.is_empty() { folder.clone() } else { format!("{folder} · {}", row.subtitle) };
+        row.in_tray = true;
+        row
     }
 
     fn background(&self, mx: &Mx) -> Option<Hsla> {
@@ -160,6 +172,12 @@ impl TabRow {
         }
         let close_host = host.clone();
         let close_id = self.id.clone();
+        let in_tray = self.in_tray;
+        let (close_key, close_tip) = if in_tray {
+            (format!("tray-out:{}", self.id), "Tirar de \"Em andamento\"")
+        } else {
+            (format!("close:{}", self.id), "Fechar painel")
+        };
         let close = div()
             .absolute()
             .right(px(9.))
@@ -171,13 +189,17 @@ impl TabRow {
             .group_hover("tab-row", |s| s.visible())
             .child(mini_button(
                 mx,
-                SharedString::from(format!("close:{}", self.id)),
+                SharedString::from(close_key),
                 Icon::CloseRounded,
                 mx.fg_dim,
-                "Fechar painel",
+                close_tip,
                 move |_, cx| {
                     update_store(&close_host, cx, |s| {
-                        s.close_tab(&close_id);
+                        if in_tray {
+                            s.set_in_active_tray(&close_id, false);
+                        } else {
+                            s.close_tab(&close_id);
+                        }
                     })
                 },
             ));
@@ -193,8 +215,9 @@ impl TabRow {
         let target = self.id.clone();
         let root = self.folder_root.clone();
         let accent = mx.accent;
-        div()
-            .id(SharedString::from(format!("tab:{}", self.id)))
+        let row_key = if in_tray { format!("tray-tab:{}", self.id) } else { format!("tab:{}", self.id) };
+        let row = div()
+            .id(SharedString::from(row_key))
             .group("tab-row")
             .relative()
             .mx(px(7.))
@@ -226,8 +249,11 @@ impl TabRow {
                     Some(g) => s.open_group(g),
                     None => s.select(&id),
                 })
-            })
-            .on_drag(drag, |d: &DraggedTab, at, _, cx| {
+            });
+        let row = if in_tray {
+            row
+        } else {
+            row.on_drag(drag, |d: &DraggedTab, at, _, cx| {
                 cx.new(|_| TabGhost {
                     title: d.title.clone(),
                     at,
@@ -245,7 +271,8 @@ impl TabRow {
                     update_store(&host_drop, cx, |s| s.move_tab(&d.id, &target));
                 }
             })
-            .child(self.leading(mx))
+        };
+        row.child(self.leading(mx))
             .child(
                 div()
                     .flex_1()

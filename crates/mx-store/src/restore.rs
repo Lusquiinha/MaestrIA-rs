@@ -46,6 +46,8 @@ impl Store {
             do_not_disturb: c.do_not_disturb,
             suggestions_to_plugin: c.suggestions_to_plugin,
             groups_collapsed: c.groups_collapsed,
+            active_tray: c.active_tray,
+            active_tray_collapsed: c.active_tray_collapsed,
             hibernate_minutes: c.hibernate_minutes,
             shortcuts: c.shortcuts,
             plugins: c.plugins,
@@ -97,6 +99,7 @@ impl Store {
                     tab.hooks.suggestions.extend(entry.suggestions);
                     tab.done = entry.done;
                     tab.pinned = entry.pinned;
+                    tab.in_active_tray = entry.in_active_tray;
                     tab.hotkey = entry.hotkey.as_deref().and_then(crate::tabs_ops::valid_hotkey);
                     if known_group.is_some() {
                         tab.group_id = known_group;

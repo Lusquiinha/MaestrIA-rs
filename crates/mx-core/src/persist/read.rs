@@ -165,6 +165,8 @@ impl Config {
             .cloned()
             .unwrap_or_default();
         c.groups_collapsed = bool_or(j, "groupsCollapsed", &mut skipped);
+        c.active_tray = bool_or(j, "activeTray", &mut skipped);
+        c.active_tray_collapsed = bool_or(j, "activeTrayCollapsed", &mut skipped);
         c.hibernate_minutes = get_num(j, "hibernateMinutes")
             .lenient()
             .map_or(DEFAULT_HIBERNATE_MINUTES, |n| n.trunc() as i64);

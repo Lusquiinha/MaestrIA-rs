@@ -80,6 +80,8 @@ impl Store {
             suggestions_to_plugin: p.suggestions_to_plugin,
             floats: p.floats.clone(),
             groups_collapsed: p.groups_collapsed,
+            active_tray: p.active_tray,
+            active_tray_collapsed: p.active_tray_collapsed,
             hibernate_minutes: p.hibernate_minutes,
             auto_update: self.updates.app.active(),
             theme: Some(p.theme.clone()),

@@ -1,3 +1,4 @@
+mod active_tray;
 mod config;
 mod features;
 mod flows;

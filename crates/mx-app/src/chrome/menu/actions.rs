@@ -50,6 +50,7 @@ pub enum MenuAction {
     Ungroup,
     MoveTo,
     SetDone(bool),
+    SetActiveTray(bool),
     PluginCommand(String),
     Hibernate,
     Close,

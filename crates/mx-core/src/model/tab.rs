@@ -85,6 +85,7 @@ pub struct Tab {
     pub group_id: Option<String>,
     pub done: bool,
     pub pinned: bool,
+    pub in_active_tray: bool,
     pub on_sessions: bool,
     pub hibernated: bool,
     pub rested_at: Option<Time>,
@@ -131,6 +132,7 @@ impl Tab {
             group_id: None,
             done: false,
             pinned: false,
+            in_active_tray: false,
             on_sessions: false,
             hibernated: false,
             rested_at: None,
@@ -331,6 +333,9 @@ impl Tab {
         }
         if self.pinned {
             m.insert("pinned".into(), json!(true));
+        }
+        if self.in_active_tray {
+            m.insert("activeTray".into(), json!(true));
         }
         if let Some(k) = &self.hotkey {
             m.insert("hotkey".into(), json!(k));
