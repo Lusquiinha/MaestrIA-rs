@@ -4,6 +4,16 @@ use mx_plugins::host_json::context_json;
 use serde_json::{Map, Value, json};
 
 use crate::changes::Areas;
+
+fn has_transcript(chat_home: &std::path::Path, session_id: &str, hinted: Option<&str>) -> bool {
+    if hinted.is_some_and(|p| std::path::Path::new(p).is_file()) {
+        return true;
+    }
+    let file = format!("{session_id}.jsonl");
+    std::fs::read_dir(chat_home)
+        .map(|dirs| dirs.flatten().any(|d| d.path().join(&file).is_file()))
+        .unwrap_or(false)
+}
 use crate::store::Store;
 
 type PendingAlert = (String, String, Option<(String, String, String)>);
@@ -24,8 +34,10 @@ impl Store {
     pub fn apply_hook(&mut self, tab: &str, name: &str, payload: Map<String, Value>) {
         let now = self.now();
         let home = self.opts.home.clone();
+        let chat_home = self.opts.chat_home.clone();
         let payload = Value::Object(payload);
-        let joins_tray = self.prefs.active_tray && name == "UserPromptSubmit";
+        let tray_on = self.prefs.active_tray;
+        let joins_tray = tray_on && name == "UserPromptSubmit";
         let Some(t) = self.tab_mut(tab) else { return };
         let before = t.hooks.status;
         let produced = t.hooks.touched.len();
@@ -36,17 +48,21 @@ impl Store {
             t.done = false;
             save = true;
         }
-        let joined = joins_tray && t.kind == TabKind::Claude && !t.in_active_tray;
+        let started_working = after.is_busy() && !before.is_busy();
+        let joined = (joins_tray || (tray_on && started_working)) && t.kind == TabKind::Claude && !t.in_active_tray;
         if joined {
             t.in_active_tray = true;
             save = true;
         }
-        if let Some(sid) = t.hooks.session_id.clone()
-            && t.session_id.as_deref() != Some(sid.as_str())
+        let announced = t.hooks.session_id.clone().filter(|sid| t.session_id.as_deref() != Some(sid.as_str()));
+        if let Some(sid) = announced
+            && has_transcript(&chat_home, &sid, payload.get("transcript_path").and_then(Value::as_str))
+            && let Some(t) = self.tab_mut(tab)
         {
             t.session_id = Some(sid);
             save = true;
         }
+        let Some(t) = self.tab_mut(tab) else { return };
         save |= t.hooks.touched.len() != produced;
         let activations = [format!("onHook:{name}"), "onHook:*".to_owned()];
         let activations: Vec<&str> = activations.iter().map(String::as_str).collect();
@@ -114,6 +130,7 @@ impl Store {
 
     pub fn apply_agents(&mut self, list: Vec<AgentInfo>) {
         let mut save = false;
+        let chat_home = self.opts.chat_home.clone();
         for row in &list {
             let Some(pid) = row.pid else { continue };
             let Some(id) = self
@@ -135,6 +152,7 @@ impl Store {
             if let Some(sid) = &row.session_id
                 && t.hooks.session_id.is_none()
                 && t.session_id.as_ref() != Some(sid)
+                && has_transcript(&chat_home, sid, None)
             {
                 t.session_id = Some(sid.clone());
                 changed = true;

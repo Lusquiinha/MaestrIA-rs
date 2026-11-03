@@ -162,6 +162,14 @@ impl Rig {
         serde_json::from_str(&text).unwrap()
     }
 
+    pub fn transcript(&mut self, session_id: &str) {
+        let home = self.dir.path().join("chats");
+        let project = home.join("-repo");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join(format!("{session_id}.jsonl")), "{}\n").unwrap();
+        self.s.opts.chat_home = home;
+    }
+
     pub fn mkdir(&self, name: &str) -> String {
         let p = self.dir.path().join(name);
         std::fs::create_dir_all(&p).unwrap();

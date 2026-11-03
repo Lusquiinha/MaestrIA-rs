@@ -113,3 +113,35 @@ async fn the_tray_and_its_sessions_come_back_on_load() {
     assert_eq!(rig.s.tabs().len(), 2);
     assert_eq!(rig.s.active_tray_tabs().len(), 1);
 }
+
+#[test]
+fn a_session_that_starts_working_joins_without_a_new_prompt() {
+    let mut rig = Rig::new();
+    rig.panel("a");
+    rig.s.set_active_tray(true);
+    rig.tm("a").hooks.status = mx_core::model::ClaudeStatus::Ready;
+    rig.hook("a", "PreToolUse", json!({"tool_name": "Bash"}));
+    assert_eq!(tray(&rig), ["a"]);
+}
+
+#[test]
+fn turning_the_tray_on_brings_the_sessions_already_working() {
+    let mut rig = Rig::new();
+    rig.panel("a");
+    rig.panel("b");
+    rig.hook("a", "UserPromptSubmit", json!({}));
+    rig.s.set_active_tray(true);
+    assert_eq!(tray(&rig), ["a"]);
+}
+
+#[test]
+fn removed_by_hand_it_stays_out_while_the_same_work_goes_on() {
+    let mut rig = Rig::new();
+    rig.panel("a");
+    rig.s.set_active_tray(true);
+    rig.hook("a", "UserPromptSubmit", json!({}));
+    rig.s.set_in_active_tray("a", false);
+    rig.hook("a", "PreToolUse", json!({"tool_name": "Bash"}));
+    rig.hook("a", "PostToolUse", json!({"tool_name": "Bash"}));
+    assert!(tray(&rig).is_empty());
+}

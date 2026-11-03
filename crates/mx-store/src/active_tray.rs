@@ -25,6 +25,17 @@ impl Store {
 
     pub fn set_active_tray(&mut self, on: bool) {
         self.set_pref(on, |p| &mut p.active_tray);
+        if on {
+            let busy: Vec<String> = self
+                .tabs
+                .iter()
+                .filter(|t| t.kind == TabKind::Claude && !t.in_active_tray && t.status().is_busy())
+                .map(|t| t.id.clone())
+                .collect();
+            for id in busy {
+                self.set_in_active_tray(&id, true);
+            }
+        }
         self.mark(Areas::SIDEBAR);
     }
 

@@ -165,14 +165,14 @@ impl Tab {
     }
 
     pub fn resumable(&self) -> bool {
-        self.kind == TabKind::Claude && self.resume_id().is_some()
+        self.kind == TabKind::Claude && self.session_id.is_some()
     }
 
     pub fn can_hibernate(&self) -> bool {
         self.kind == TabKind::Claude
             && !self.exited
             && !self.hibernated
-            && self.resume_id().is_some()
+            && self.session_id.is_some()
     }
 
     pub fn status(&self) -> ClaudeStatus {
@@ -293,7 +293,7 @@ impl Tab {
             m.insert("tint".into(), json!(t.name()));
         }
         if self.resumable()
-            && let Some(id) = self.resume_id()
+            && let Some(id) = self.session_id.as_deref()
         {
             m.insert("sessionId".into(), json!(id));
         }

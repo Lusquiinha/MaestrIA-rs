@@ -174,6 +174,7 @@ async fn agents_poll_teaches_session_ids_by_pid() {
     let runner = FakeRunner::new();
     runner.respond("claude agents --json", mx_sys::output(0, "x [{\"pid\": 1000, \"sessionId\": \"sid\", \"name\": \"nome\"}]", ""));
     let mut rig = Rig::with_runner(runner);
+    rig.transcript("sid");
     let id = open(&mut rig);
     rig.terms.give_pid(&id);
     rig.s.start();

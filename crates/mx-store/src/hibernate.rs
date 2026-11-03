@@ -88,7 +88,7 @@ impl Store {
     }
 
     pub(crate) fn relaunch_woken(&mut self, id: &str) {
-        let Some(resume) = self.tab(id).map(|t| t.resume_id().map(str::to_owned)) else {
+        let Some(resume) = self.tab(id).map(|t| t.session_id.clone()) else {
             return;
         };
         self.launch_claude(id, resume, None);
