@@ -180,7 +180,7 @@ impl SettingsDialog {
     fn label(&self, s: &PluginSetting, cx: &mut Context<Self>) -> gpui::Div {
         let t = theme(cx);
         let mut row = div().flex().items_center().min_w_0().child(
-            div().min_w_0().text_size(px(13.)).font_weight(FontWeight::MEDIUM).text_color(hsla(t.fg)).child(s.title.clone()),
+            div().flex_1().min_w_0().text_size(px(13.)).font_weight(FontWeight::MEDIUM).text_color(hsla(t.fg)).child(s.title.clone()),
         );
         if !s.description.is_empty() {
             row = row.child(
@@ -261,7 +261,7 @@ impl SettingsDialog {
 
     fn row(&self, s: &PluginSetting, value: &Value, cx: &mut Context<Self>) -> AnyElement {
         let t = theme(cx);
-        let mut col = div().w_full().flex().flex_col().gap(px(4.)).py(px(8.));
+        let mut col = div().flex().flex_col().gap(px(4.)).py(px(8.));
         let inline = matches!(s.kind, SettingType::Boolean | SettingType::Folders);
         col = if inline {
             col.child(
@@ -355,6 +355,29 @@ fn picked_roots(value: &Value) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::TestAppContext;
+
+    struct Repro;
+
+    impl Render for Repro {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let t = theme(cx);
+            let label = div().flex().items_center().min_w_0().child(
+                div().debug_selector(|| "label".to_owned()).flex_1().min_w_0().text_size(px(13.)).child("clique num cluster abre"),
+            );
+            let row = div().flex().flex_col().gap(px(4.)).py(px(8.)).child(label).child(div().flex().flex_wrap().gap(px(6.)).child("no maestria"));
+            let body = div().id("plugin-settings").max_h(px(520.)).overflow_y_scroll().px(px(24.)).flex().flex_col().child(row);
+            div().size_full().relative().child(barrier(BARRIER, |_, _| {}).flex().items_center().justify_center().child(card(&t, 520.).child(body)))
+        }
+    }
+
+    #[gpui::test]
+    fn a_setting_title_gets_the_dialog_width(cx: &mut TestAppContext) {
+        let (_, vcx) = cx.add_window_view(|_, _| Repro);
+        vcx.run_until_parked();
+        let b = vcx.debug_bounds("label").expect("label drawn");
+        assert!(b.size.width > px(100.), "label is {:?} wide", b.size.width);
+    }
 
     #[test]
     fn a_color_is_empty_hex_or_a_theme_name() {
