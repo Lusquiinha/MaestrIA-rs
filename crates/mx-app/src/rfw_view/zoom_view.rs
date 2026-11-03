@@ -22,6 +22,7 @@ use super::widgets_core::optional;
 // gpui reports a wheel notch as 3 lines; Flutter on Linux scrolls 53 px per notch.
 const WHEEL_LINE_PX: f64 = 53.0 / 3.0;
 const DEFAULT_TEXT: f32 = 13.0;
+const FIT_EPSILON: f64 = 0.001;
 
 thread_local! {
     static SCALE: Cell<f32> = const { Cell::new(1.0) };
@@ -55,6 +56,7 @@ pub struct ZoomState {
     blur: Option<Subscription>,
     moved: bool,
     force_report: bool,
+    reported_fit: f64,
     content: Option<(FitSlot, BoxFit, (f64, f64))>,
 }
 
@@ -73,6 +75,7 @@ impl Default for ZoomState {
             blur: None,
             moved: false,
             force_report: false,
+            reported_fit: 1.0,
             content: None,
         }
     }
@@ -180,6 +183,7 @@ impl ZoomState {
         if !std::mem::take(&mut self.force_report) && !should_report(s, self.reported) {
             return None;
         }
+        self.reported_fit = self.fit_scale();
         self.reported = s;
         Some(s)
     }
@@ -283,7 +287,9 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             let mut st = probe_slot.borrow_mut();
             let resized = st.bounds.map(|b| b.size) != Some(bounds.size);
             st.bounds = Some(bounds);
-            st.force_report |= resized;
+            let fit_changed = !st.force_report && (st.fit_scale() - st.reported_fit).abs() > FIT_EPSILON;
+            st.force_report |= resized || fit_changed;
+            let resized = resized || fit_changed;
             let animating = st.animating();
             drop(st);
             if animating {

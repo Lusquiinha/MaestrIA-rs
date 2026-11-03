@@ -302,3 +302,42 @@ fn on_zoom_fires_after_first_layout_and_resize(cx: &mut TestAppContext) {
     let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
     assert!(fits[0] != fits[1], "{fits:?}");
 }
+
+#[gpui::test]
+fn on_zoom_fires_again_when_the_content_resizes(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    let seen: Rc<RefCell<Vec<serde_json::Map<String, serde_json::Value>>>> = Rc::default();
+    let sink_seen = seen.clone();
+    let lib = |h: f32| {
+        format!(
+            "import core.widgets;\nimport maestria;\nwidget root = ZoomView(maxScale: 6.0, onZoom: event \"z\" {{}}, child: FittedBox(fit: \"contain\", child: SizedBox(width: 280.0, height: {h:.1}, child: Center(child: Text(text: \"planta\")))));"
+        )
+    };
+    let first = lib(140.0);
+    let (view, vcx) = cx.add_window_view(move |_, _| {
+        let sink = Rc::new(move |a: crate::rfw_view::ViewAction, _: &mut gpui::Window, _: &mut gpui::App| {
+            sink_seen.borrow_mut().push(a.values);
+        });
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, sink);
+        v.set_library(&first);
+        v.set_root("root");
+        v
+    });
+    vcx.simulate_resize(size(px(560.0), px(400.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    assert_eq!(seen.borrow().len(), 1, "{:?}", seen.borrow());
+    let taller = lib(700.0);
+    view.update(vcx, |v, cx| {
+        v.set_library(&taller);
+        cx.notify();
+    });
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let all = seen.borrow().clone();
+    assert_eq!(all.len(), 2, "{all:?}");
+    let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
+    assert!(fits[0] != fits[1], "{fits:?}");
+}
