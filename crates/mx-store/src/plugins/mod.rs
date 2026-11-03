@@ -6,7 +6,7 @@ mod sessions;
 mod tools;
 mod views;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use mx_core::model::Tab;
@@ -63,6 +63,7 @@ pub struct PluginUi {
     pub modal: Option<(Tab, PluginView)>,
     pub sidebars: HashMap<String, PluginView>,
     pub badges: HashMap<String, String>,
+    pub hide_windows: HashSet<String>,
     pub floats: PluginFloats,
     pub dialogs: VecDeque<PluginDialog>,
     pub effects: Vec<Effect>,
@@ -247,6 +248,10 @@ impl Store {
             r.tell(&old, "sidebar.hidden", Default::default());
         }
         self.mark(Areas::PLUGINS | Areas::SIDEBAR | Areas::PREFS);
+    }
+
+    pub fn sidebar_windows(&self, plugin: &str) -> bool {
+        !self.plugin.hide_windows.contains(plugin)
     }
 
     pub fn sidebar_view_of(&self, plugin: &str) -> Option<&PluginView> {

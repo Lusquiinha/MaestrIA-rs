@@ -113,13 +113,27 @@ fn consoles_take_lines_through_append_and_clear() {
 fn sidebar_update_sets_badges_and_reports_visibility() {
     let mut rig = rig();
     let p = info(json!({"sidebar": true}));
-    let req = |badge| SidebarUpdate { blocks: Some(Vec::new()), rfw: None, badge };
+    let req = |badge| SidebarUpdate { blocks: Some(Vec::new()), rfw: None, badge, windows: None };
     assert!(!rig.s.sidebar_update(&p, req(BadgeUpdate::Set("3".into()))));
     assert_eq!(rig.s.plugin_ui().badges["demo"], "3");
     assert!(rig.s.sidebar_view_of("demo").is_some());
     rig.s.set_sidebar_view(Some("demo"));
     assert!(rig.s.sidebar_update(&p, req(BadgeUpdate::Clear)));
     assert!(!rig.s.plugin_ui().badges.contains_key("demo"));
+}
+
+#[test]
+fn sidebar_update_windows_persists_until_changed() {
+    let mut rig = rig();
+    let p = info(json!({"sidebar": true}));
+    let req = |windows| SidebarUpdate { blocks: None, rfw: None, badge: BadgeUpdate::Unchanged, windows };
+    assert!(rig.s.sidebar_windows("demo"));
+    rig.s.sidebar_update(&p, req(Some(false)));
+    assert!(!rig.s.sidebar_windows("demo"));
+    rig.s.sidebar_update(&p, req(None));
+    assert!(!rig.s.sidebar_windows("demo"));
+    rig.s.sidebar_update(&p, req(Some(true)));
+    assert!(rig.s.sidebar_windows("demo"));
 }
 
 #[test]

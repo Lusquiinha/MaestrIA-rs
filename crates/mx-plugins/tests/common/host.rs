@@ -181,7 +181,7 @@ impl PluginHostApi for FakeHost {
         done(Ok(()))
     }
     fn sidebar_update(&self, _: &PluginInfo, r: SidebarUpdate) -> HostResult<'_, bool> {
-        self.rec(format!("sidebar {:?} {}", r.badge, r.blocks.map_or(0, |b| b.len())));
+        self.rec(format!("sidebar {:?} {} {:?}", r.badge, r.blocks.map_or(0, |b| b.len()), r.windows));
         done(Ok(false))
     }
     fn float_show(&self, _: &PluginInfo, r: FloatContent) -> HostResult<'_, ()> {

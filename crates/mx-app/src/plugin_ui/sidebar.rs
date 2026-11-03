@@ -53,6 +53,10 @@ fn row(mx: &Mx, id: String, label: String, active: bool, act: impl Fn(&mut Windo
         .into_any_element()
 }
 
+fn lists_windows(has_sidebar: bool, asked: bool) -> bool {
+    !has_sidebar || asked
+}
+
 fn windows(mx: &Mx, host: &Entity<StoreHost>, store: &Store, plugin: &str, empty: bool) -> Vec<AnyElement> {
     let focused = store.focused_tab_id();
     let open: Vec<(String, String)> = store
@@ -99,7 +103,9 @@ impl Render for PluginSidebar {
             .child(div().text_size(px(14.)).font_weight(FontWeight::SEMIBOLD).text_color(mx.fg).child(name.clone()));
         let has_sidebar = manifest.as_ref().is_some_and(|m| m.sidebar);
         let mut col = div().size_full().flex().flex_col().child(header);
-        col = col.children(windows(&mx, &self.host, store, &plugin, !has_sidebar));
+        if lists_windows(has_sidebar, store.sidebar_windows(&plugin)) {
+            col = col.children(windows(&mx, &self.host, store, &plugin, !has_sidebar));
+        }
         if has_sidebar {
             let view = store.sidebar_view_of(&plugin).cloned();
             match view {
@@ -158,5 +164,18 @@ impl Render for PluginSidebar {
             }
         }
         col.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lists_windows;
+
+    #[test]
+    fn only_a_plugin_with_its_own_tab_can_hide_the_windows_list() {
+        assert!(lists_windows(true, true));
+        assert!(!lists_windows(true, false));
+        assert!(lists_windows(false, true));
+        assert!(lists_windows(false, false));
     }
 }
