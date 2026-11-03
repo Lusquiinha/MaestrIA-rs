@@ -77,10 +77,16 @@ impl Store {
         let run = command
             .map(str::to_owned)
             .or_else(|| launcher.map(|l| l.command));
-        if !adopted && let Some(term) = self.terms.get_mut(&id) {
-            match &run {
-                None => term.start_shell(&cwd),
-                Some(r) => term.start_command(r, &cwd, None),
+        let slept = adopted && self.terms.get(&id).is_some_and(|t| t.exited() && t.slept_away());
+        if let Some(term) = self.terms.get_mut(&id) {
+            if slept {
+                term.remark(crate::hibernate::SHELL_SLEPT);
+                term.start_shell(&cwd);
+            } else if !adopted {
+                match &run {
+                    None => term.start_shell(&cwd),
+                    Some(r) => term.start_command(r, &cwd, None),
+                }
             }
         }
         self.sync_term(&id);

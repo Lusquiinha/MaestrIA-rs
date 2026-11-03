@@ -163,6 +163,8 @@ pub(crate) struct Finished {
 pub(crate) struct Hibernate {
     pub after_secs: u64,
     pub keys: Vec<String>,
+    #[serde(default)]
+    pub shells: Vec<String>,
 }
 
 pub(crate) fn screens_dir(socket: &Path) -> PathBuf {

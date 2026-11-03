@@ -126,9 +126,9 @@ impl TermRegistry {
         self.inner.lock().ok().and_then(|r| r.ptyd.clone())
     }
 
-    pub fn hibernate_when_idle(&self, tab_ids: Vec<String>, after: std::time::Duration) -> std::io::Result<()> {
+    pub fn hibernate_when_idle(&self, claudes: Vec<String>, shells: Vec<String>, after: std::time::Duration) -> std::io::Result<()> {
         match self.ptyd() {
-            Some(ptyd) if !tab_ids.is_empty() => ptyd.hibernate_when_idle(tab_ids, after),
+            Some(ptyd) if !claudes.is_empty() || !shells.is_empty() => ptyd.hibernate_when_idle(claudes, shells, after),
             _ => Ok(()),
         }
     }
