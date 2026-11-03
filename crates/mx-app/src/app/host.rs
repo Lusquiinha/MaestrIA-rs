@@ -17,7 +17,7 @@ fn start_ptyd(state_dir: &std::path::Path) -> Option<(Ptyd, Info)> {
     if std::env::var(PTYD_ENV).is_ok_and(|v| v.trim() == "0") {
         return None;
     }
-    let exe = std::env::current_exe().ok()?;
+    let exe = crate::app::restart::app_exe()?;
     let log = state_dir.join("ptyd.log");
     let started = Ptyd::ensure(ptyd::socket_in(state_dir), &exe, Some(&log)).and_then(|d| d.info().map(|i| (d, i)));
     match started {

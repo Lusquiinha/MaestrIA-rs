@@ -117,8 +117,20 @@ pub fn request(all: bool, cx: &mut App) {
     }
 }
 
+pub fn app_exe() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    Some(live_path(&exe.to_string_lossy()).into())
+}
+
+fn live_path(exe: &str) -> &str {
+    exe.strip_suffix(" (deleted)").unwrap_or(exe)
+}
+
 fn restart(with_daemon: bool, cx: &mut App) {
     ui::act(cx, Store::keep_sessions_on_quit);
+    if let Some(exe) = app_exe() {
+        cx.set_restart_path(exe);
+    }
     if with_daemon {
         ui::host(cx).update(cx, |h, _| h.stop_ptyd_on_quit = true);
     }
@@ -128,6 +140,12 @@ fn restart(with_daemon: bool, cx: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_binary_replaced_by_an_update_restarts_from_its_path() {
+        assert_eq!(live_path("/opt/maestria-rs/maestria-rs (deleted)"), "/opt/maestria-rs/maestria-rs");
+        assert_eq!(live_path("/opt/maestria-rs/maestria-rs"), "/opt/maestria-rs/maestria-rs");
+    }
 
     #[test]
     fn the_confirm_says_what_ends() {
