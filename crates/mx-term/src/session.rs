@@ -107,6 +107,7 @@ struct State {
     exited: bool,
     exit_code: Option<i32>,
     remote: bool,
+    slept_away: bool,
 }
 
 pub(crate) struct Shared {
@@ -195,6 +196,10 @@ impl TerminalSession {
         *lock(&self.shared.ptyd) = ptyd;
     }
 
+    pub fn slept_away(&self) -> bool {
+        lock(&self.shared.state).slept_away
+    }
+
     pub fn is_remote(&self) -> bool {
         lock(&self.shared.state).remote
     }
@@ -235,11 +240,14 @@ impl TerminalSession {
         *lock(&self.shared.port.size) = size;
         self.shared.term.lock().resize(size);
         self.feed(finished.screen.as_bytes());
-        self.feed(spawn::exit_line(finished.code).as_bytes());
+        if !finished.hibernated {
+            self.feed(spawn::exit_line(finished.code).as_bytes());
+        }
         let mut st = lock(&self.shared.state);
         st.started = true;
         st.exited = true;
         st.exit_code = finished.code;
+        st.slept_away = finished.hibernated;
     }
 
     fn adopt_remote(&self, stream: std::os::unix::net::UnixStream, ready: &ptyd::Ready) -> anyhow::Result<()> {

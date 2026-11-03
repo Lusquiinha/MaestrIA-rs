@@ -16,7 +16,7 @@ use alacritty_terminal::vte::ansi::Processor;
 use rustix::event::{PollFd, PollFlags, Timespec, poll};
 
 use super::replay::replay;
-use super::wire::{self, Attach, Exit, Failure, Finished, Info, Prune, Ready, Size, Spawn};
+use super::wire::{self, Attach, Exit, Failure, Finished, Hibernate, Info, Prune, Ready, Size, Spawn};
 use crate::io::exit_code;
 use crate::scrubber::VtScrubber;
 use crate::session::GridSize;
@@ -51,6 +51,9 @@ struct Mirror {
     size: GridSize,
     client: Option<Client>,
     exited: Option<Option<i32>>,
+    quiet_since: Instant,
+    hibernate_after: Option<Duration>,
+    hibernating: bool,
 }
 
 impl Mirror {
@@ -103,7 +106,20 @@ impl Session {
         m.scrubbed.clear();
         m.scrubber.scrub_into(bytes, &mut m.scrubbed);
         m.parser.advance(&mut m.term, &m.scrubbed);
+        m.quiet_since = Instant::now();
         m.send(wire::DATA, bytes);
+    }
+
+    fn due_to_hibernate(&self) -> bool {
+        let mut m = lock(&self.mirror);
+        let due = m.client.is_none()
+            && !m.hibernating
+            && m.exited.is_none()
+            && m.hibernate_after.is_some_and(|after| m.quiet_since.elapsed() >= after);
+        if due {
+            m.hibernating = true;
+        }
+        due
     }
 
     fn sync_deadline(&self) -> Option<Instant> {
@@ -160,6 +176,7 @@ impl Session {
         let mut m = lock(&self.mirror);
         if m.client.as_ref().is_some_and(|c| c.id == client) {
             m.client = None;
+            m.quiet_since = Instant::now();
         }
     }
 }
@@ -291,6 +308,16 @@ fn handle(daemon: &Arc<Daemon>, stream: UnixStream, stop: &AtomicBool) -> io::Re
             let info = Info { v: wire::VERSION, rev: daemon.rev.clone(), pid: std::process::id(), sessions };
             return wire::write_json(&stream, wire::INFO, &info);
         }
+        wire::HIBERNATE => {
+            let req: Hibernate = wire::parse(&payload)?;
+            let after = (req.after_secs > 0).then(|| Duration::from_secs(req.after_secs));
+            for key in &req.keys {
+                if let Some(s) = lock(&daemon.sessions).get(key).cloned() {
+                    lock(&s.mirror).hibernate_after = after;
+                }
+            }
+            return wire::write_frame(&stream, wire::HIBERNATE, b"");
+        }
         wire::PRUNE => {
             let req: Prune = wire::parse(&payload)?;
             let ended = daemon.prune(&req.keep);
@@ -367,6 +394,9 @@ fn spawn(daemon: &Arc<Daemon>, req: Spawn, client: Client) -> anyhow::Result<Arc
         size,
         client: Some(client),
         exited: None,
+        quiet_since: Instant::now(),
+        hibernate_after: None,
+        hibernating: false,
     };
     mirror.send_json(wire::READY, &mirror.ready(pid));
     let session = Arc::new(Session {
@@ -438,6 +468,10 @@ fn pump(daemon: &Arc<Daemon>, session: &Arc<Session>, mut pty: Pty) {
         session.expire_sync();
         if hung_up || Instant::now() >= next_check {
             next_check = Instant::now() + CHILD_CHECK;
+            if session.due_to_hibernate() {
+                log::info!("ptyd hibernating idle session {}", session.key);
+                signals::hang_up(session.pid);
+            }
             if let Some(ChildEvent::Exited(status)) = pty.next_child_event() {
                 break status.and_then(|s| exit_code(&s));
             }
@@ -470,7 +504,7 @@ fn save_finished(socket: &Path, key: &str, m: &Mirror, code: Option<i32>) -> io:
         std::fs::create_dir_all(dir)?;
     }
     let screen = String::from_utf8_lossy(&replay(&m.term)).into_owned();
-    let finished = Finished { code, size: m.size.into(), screen };
+    let finished = Finished { code, size: m.size.into(), screen, hibernated: m.hibernating };
     let temp = file.with_extension("tmp");
     std::fs::write(&temp, serde_json::to_vec(&finished).map_err(io::Error::other)?)?;
     std::fs::set_permissions(&temp, std::fs::Permissions::from_mode(0o600))?;
