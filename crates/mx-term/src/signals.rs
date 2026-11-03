@@ -19,6 +19,17 @@ pub fn force_kill(pid: u32) -> bool {
     signal(pid, Signal::KILL)
 }
 
+pub fn exit_code(status: &std::process::ExitStatus) -> Option<i32> {
+    use std::os::unix::process::ExitStatusExt;
+    status.code().or_else(|| status.signal().map(|s| -s))
+}
+
+pub fn redraw(pty: impl std::os::fd::AsFd) {
+    if let Ok(group) = rustix::termios::tcgetpgrp(pty) {
+        let _ = kill_process_group(group, Signal::WINCH);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

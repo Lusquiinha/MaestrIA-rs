@@ -127,3 +127,15 @@ fn quitting_hands_the_daemon_only_resumable_claudes_and_the_hibernation_time() {
     rig.s.set_hibernate_minutes(0);
     assert!(rig.s.hibernatable_away().is_none());
 }
+
+#[tokio::test]
+async fn keeping_sessions_still_ends_the_terminals_no_panel_brings_back() {
+    let mut rig = Rig::new();
+    let kept = rig.shell("s");
+    let owned = rig.shell("p");
+    rig.tm(&owned).owner = Some("plugin".into());
+    rig.s.relaunch_after_quit();
+    rig.s.shutdown().await;
+    assert!(rig.terms.log(&kept).kept);
+    assert_eq!((rig.terms.log(&owned).kept, rig.terms.log(&owned).kills), (false, 1));
+}

@@ -42,7 +42,7 @@ impl Store {
         }
     }
 
-    fn saved_tabs(&self) -> Vec<&Tab> {
+    pub(crate) fn saved_tabs(&self) -> Vec<&Tab> {
         self.tabs
             .iter()
             .filter(|t| !t.is_plugin_view() && t.owner.is_none() && (!t.exited || t.resumable()))

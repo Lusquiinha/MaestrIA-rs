@@ -134,8 +134,9 @@ impl Store {
         for tab in &mut self.tabs {
             tab.armed = false;
         }
-        for term in self.terms.values_mut() {
-            if self.keep_sessions {
+        let comes_back: Vec<String> = self.saved_tabs().iter().map(|t| t.id.clone()).collect();
+        for (id, term) in self.terms.iter_mut() {
+            if self.keep_sessions && comes_back.contains(id) {
                 term.keep_alive();
             } else {
                 kills.push(self.p.rt.spawn(term.kill()));

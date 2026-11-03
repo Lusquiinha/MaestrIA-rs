@@ -174,3 +174,51 @@ fn a_quiet_session_without_the_app_is_hibernated_and_comes_back_asleep() {
     let awake = second.adopt_session("chatty").expect("the busy one is still running");
     assert!(!awake.is_exited());
 }
+
+#[test]
+fn a_big_paste_to_a_busy_program_arrives_whole_without_blocking_the_caller() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = daemon(dir.path());
+    let r = registry(&d);
+    let mut term = r.create("tab1");
+    term.start_command("sh -c 'stty -echo; sleep 2; head -c 300000 | wc -c'", "/", None);
+    let session = r.get("tab1").unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let line = format!("{}\n", "x".repeat(99));
+    let paste = line.repeat(3000);
+    let started = Instant::now();
+    session.write(paste.as_bytes());
+    assert!(started.elapsed() < Duration::from_millis(500), "write blocked for {:?}", started.elapsed());
+    assert!(until(Duration::from_secs(15), || screen(&session).contains("300000")), "{}", screen(&session));
+}
+
+#[test]
+fn a_second_window_taking_the_session_leaves_the_first_one_running() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = daemon(dir.path());
+    let first = registry(&d);
+    let mut term = first.create("tab1");
+    term.start_command("sleep 30", "/", None);
+    let one = first.get("tab1").unwrap();
+    let two = registry(&d).adopt_session("tab1").unwrap();
+    assert!(until(Duration::from_secs(5), || screen(&one).contains("outra janela")));
+    assert!(!one.is_exited() && !two.is_exited());
+}
+
+#[test]
+fn reattaching_forgets_the_hibernation_set_at_the_last_quit() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = daemon(dir.path());
+    let first = registry(&d);
+    let mut term = first.create("tab1");
+    term.start_command("sleep 30", "/", None);
+    term.keep_alive();
+    first.hibernate_when_idle(vec!["tab1".into()], Duration::from_secs(3)).unwrap();
+    drop((term, first));
+    let second = registry(&d);
+    let back = second.adopt_session("tab1").unwrap();
+    back.keep_alive();
+    drop((back, second));
+    std::thread::sleep(Duration::from_secs(5));
+    assert_eq!(d.info().unwrap().sessions, 1);
+}

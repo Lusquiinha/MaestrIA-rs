@@ -4,17 +4,12 @@ use mx_plugins::host_json::context_json;
 use serde_json::{Map, Value, json};
 
 use crate::changes::Areas;
-
-fn has_transcript(chat_home: &std::path::Path, session_id: &str, hinted: Option<&str>) -> bool {
-    if hinted.is_some_and(|p| std::path::Path::new(p).is_file()) {
-        return true;
-    }
-    let file = format!("{session_id}.jsonl");
-    std::fs::read_dir(chat_home)
-        .map(|dirs| dirs.flatten().any(|d| d.path().join(&file).is_file()))
-        .unwrap_or(false)
-}
 use crate::store::Store;
+
+fn has_transcript(chat_home: &std::path::Path, cwd: &str, session_id: &str, hinted: Option<&str>) -> bool {
+    hinted.is_some_and(|p| std::path::Path::new(p).is_file())
+        || chat_home.join(mx_sys::history::dir_for(cwd)).join(format!("{session_id}.jsonl")).is_file()
+}
 
 type PendingAlert = (String, String, Option<(String, String, String)>);
 
@@ -55,8 +50,9 @@ impl Store {
             save = true;
         }
         let announced = t.hooks.session_id.clone().filter(|sid| t.session_id.as_deref() != Some(sid.as_str()));
+        let cwd = t.cwd.clone();
         if let Some(sid) = announced
-            && has_transcript(&chat_home, &sid, payload.get("transcript_path").and_then(Value::as_str))
+            && has_transcript(&chat_home, &cwd, &sid, payload.get("transcript_path").and_then(Value::as_str))
             && let Some(t) = self.tab_mut(tab)
         {
             t.session_id = Some(sid);
@@ -152,7 +148,7 @@ impl Store {
             if let Some(sid) = &row.session_id
                 && t.hooks.session_id.is_none()
                 && t.session_id.as_ref() != Some(sid)
-                && has_transcript(&chat_home, sid, None)
+                && has_transcript(&chat_home, &t.cwd, sid, None)
             {
                 t.session_id = Some(sid.clone());
                 changed = true;

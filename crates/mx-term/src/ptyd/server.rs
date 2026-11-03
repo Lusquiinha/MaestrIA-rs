@@ -17,7 +17,6 @@ use rustix::event::{PollFd, PollFlags, Timespec, poll};
 
 use super::replay::replay;
 use super::wire::{self, Attach, Exit, Failure, Finished, Hibernate, Info, Prune, Ready, Size, Spawn};
-use crate::io::exit_code;
 use crate::scrubber::VtScrubber;
 use crate::session::GridSize;
 use crate::signals;
@@ -26,12 +25,21 @@ const READ_CHUNK: usize = 0x10000;
 const CHILD_CHECK: Duration = Duration::from_millis(500);
 const HUP_RECHECK: Duration = Duration::from_millis(10);
 const CLIENT_WRITE_TIMEOUT: Duration = Duration::from_secs(10);
-const PTY_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+const INPUT_RECHECK: Duration = Duration::from_secs(1);
 const ACCEPT_TICK: Duration = Duration::from_secs(1);
 const IDLE_EXIT: Duration = Duration::from_secs(60);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn window(size: GridSize) -> alacritty_terminal::event::WindowSize {
+    alacritty_terminal::event::WindowSize {
+        num_lines: size.rows,
+        num_cols: size.cols,
+        cell_width: size.cell_width,
+        cell_height: size.cell_height,
+    }
 }
 
 fn timespec(d: Duration) -> Timespec {
@@ -73,8 +81,11 @@ impl Mirror {
 
     fn take(&mut self, client: Client) {
         if let Some(old) = self.client.replace(client) {
+            let _ = wire::write_frame(&old.stream, wire::TAKEN, b"");
             let _ = old.stream.shutdown(std::net::Shutdown::Both);
         }
+        self.hibernate_after = None;
+        self.hibernating = false;
     }
 
     fn ready(&self, pid: u32) -> Ready {
@@ -136,18 +147,13 @@ impl Session {
 
     fn input(&self, mut bytes: &[u8]) {
         let file = lock(&self.pty);
-        let deadline = Instant::now() + PTY_WRITE_TIMEOUT;
-        while !bytes.is_empty() {
+        while !bytes.is_empty() && self.alive() {
             match (&*file).write(bytes) {
                 Ok(0) => return,
                 Ok(n) => bytes = &bytes[n..],
                 Err(e) if e.kind() == ErrorKind::Interrupted => {}
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    let left = deadline.saturating_duration_since(Instant::now());
-                    if left.is_zero() {
-                        return;
-                    }
-                    let _ = poll(&mut [PollFd::new(&*file, PollFlags::OUT)], Some(&timespec(left)));
+                    let _ = poll(&mut [PollFd::new(&*file, PollFlags::OUT)], Some(&timespec(INPUT_RECHECK)));
                 }
                 Err(_) => return,
             }
@@ -372,8 +378,7 @@ fn refuse(stream: &UnixStream, message: &str) -> io::Result<()> {
 }
 
 fn spawn(daemon: &Arc<Daemon>, req: Spawn, client: Client) -> anyhow::Result<Arc<Session>> {
-    let mut map = lock(&daemon.sessions);
-    if map.get(&req.key).is_some_and(|old| old.alive()) {
+    if lock(&daemon.sessions).get(&req.key).is_some_and(|old| old.alive()) {
         anyhow::bail!("a sessão {} já está viva", req.key);
     }
     let size = GridSize::from(req.size);
@@ -383,10 +388,11 @@ fn spawn(daemon: &Arc<Daemon>, req: Spawn, client: Client) -> anyhow::Result<Arc
         drain_on_exit: true,
         env: req.env,
     };
-    let pty = tty::new(&options, size.window_size(), 0)?;
+    let pty = tty::new(&options, window(size), 0)?;
     let pid = pty.child().id();
+    let file = pty.file().try_clone()?;
     let config = Config { scrolling_history: req.scrollback, ..Config::default() };
-    let mut mirror = Mirror {
+    let mirror = Mirror {
         term: Term::new(config, &size, VoidListener),
         parser: Processor::new(),
         scrubber: VtScrubber::new(),
@@ -398,18 +404,25 @@ fn spawn(daemon: &Arc<Daemon>, req: Spawn, client: Client) -> anyhow::Result<Arc
         hibernate_after: None,
         hibernating: false,
     };
-    mirror.send_json(wire::READY, &mirror.ready(pid));
     let session = Arc::new(Session {
         key: req.key.clone(),
         pid,
         done: AtomicBool::new(false),
-        pty: Mutex::new(pty.file().try_clone()?),
+        pty: Mutex::new(file),
         mirror: Mutex::new(mirror),
     });
-    map.insert(req.key, session.clone());
-    drop(map);
+    lock(&daemon.sessions).insert(req.key, session.clone());
+    let mut guard = lock(&session.mirror);
     let (d, s) = (daemon.clone(), session.clone());
-    std::thread::Builder::new().name(format!("ptyd-pty-{pid}")).spawn(move || pump(&d, &s, pty))?;
+    if let Err(err) = std::thread::Builder::new().name(format!("ptyd-pty-{pid}")).spawn(move || pump(&d, &s, pty)) {
+        drop(guard);
+        daemon.forget(&session);
+        signals::hang_up(pid);
+        return Err(err.into());
+    }
+    let ready = guard.ready(pid);
+    guard.send_json(wire::READY, &ready);
+    drop(guard);
     Ok(session)
 }
 
@@ -436,6 +449,7 @@ fn attach(daemon: &Arc<Daemon>, key: &str, client: Client) -> Option<Arc<Session
     m.send_json(wire::READY, &ready);
     m.send(wire::DATA, &screen);
     drop(guard);
+    signals::redraw(&*lock(&session.pty));
     Some(session)
 }
 
@@ -473,7 +487,7 @@ fn pump(daemon: &Arc<Daemon>, session: &Arc<Session>, mut pty: Pty) {
                 signals::hang_up(session.pid);
             }
             if let Some(ChildEvent::Exited(status)) = pty.next_child_event() {
-                break status.and_then(|s| exit_code(&s));
+                break status.and_then(|s| signals::exit_code(&s));
             }
             if hung_up {
                 recheck = (recheck * 2).min(CHILD_CHECK);

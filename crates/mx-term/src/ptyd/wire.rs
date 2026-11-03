@@ -20,6 +20,7 @@ pub(crate) const INFO: u8 = b'?';
 pub(crate) const SHUTDOWN: u8 = b'Q';
 pub(crate) const PRUNE: u8 = b'P';
 pub(crate) const HIBERNATE: u8 = b'H';
+pub(crate) const TAKEN: u8 = b'T';
 
 const HEADER: usize = 5;
 const MAX_FRAME: usize = 64 << 20;

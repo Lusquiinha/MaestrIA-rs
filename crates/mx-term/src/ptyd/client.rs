@@ -12,7 +12,6 @@ use crate::io::{Feeder, LifeIo, LifeOwner, Port, SharedTerm, Sink, Wake, Writer,
 use crate::session::GridSize;
 
 const HANDSHAKE: Duration = Duration::from_secs(5);
-const INPUT_TIMEOUT: Duration = Duration::from_secs(2);
 const START_WAIT: Duration = Duration::from_secs(3);
 const READ_CHUNK: usize = 0x10000;
 
@@ -30,16 +29,16 @@ impl Ptyd {
         &self.socket
     }
 
-    pub fn ensure(socket: impl Into<PathBuf>, exe: &Path, log: Option<&Path>) -> io::Result<Ptyd> {
+    pub fn ensure(socket: impl Into<PathBuf>, exe: &Path, log: Option<&Path>) -> io::Result<(Ptyd, Info)> {
         let ptyd = Ptyd::at(socket);
-        if ptyd.info().is_ok() {
-            return Ok(ptyd);
+        if let Ok(info) = ptyd.info() {
+            return Ok((ptyd, info));
         }
         ptyd.launch(exe, log)?;
         let deadline = Instant::now() + START_WAIT;
         loop {
             match ptyd.info() {
-                Ok(_) => return Ok(ptyd),
+                Ok(info) => return Ok((ptyd, info)),
                 Err(err) if Instant::now() >= deadline => return Err(err),
                 Err(_) => std::thread::sleep(Duration::from_millis(30)),
             }
@@ -143,12 +142,21 @@ fn reply(stream: &UnixStream) -> io::Result<Ready> {
     }
 }
 
-pub(crate) fn send_input(stream: &UnixStream, bytes: &[u8]) -> io::Result<()> {
-    wire::write_frame(stream, wire::INPUT, bytes)
+pub(crate) fn input_frame(bytes: &[u8]) -> Vec<u8> {
+    wire::encode(wire::INPUT, bytes)
 }
 
-pub(crate) fn send_resize(stream: &UnixStream, size: GridSize) -> io::Result<()> {
-    wire::write_json(stream, wire::RESIZE, &Size::from(size))
+pub(crate) fn resize_frame(size: GridSize) -> Vec<u8> {
+    wire::encode(wire::RESIZE, &serde_json::to_vec(&Size::from(size)).unwrap_or_default())
+}
+
+fn write_frames(mut stream: UnixStream, frames: std::sync::mpsc::Receiver<Vec<u8>>) {
+    use std::io::Write;
+    for frame in frames {
+        if stream.write_all(&frame).is_err() {
+            return;
+        }
+    }
 }
 
 pub(crate) fn start(
@@ -160,9 +168,11 @@ pub(crate) fn start(
     owner: Weak<dyn LifeOwner>,
 ) -> io::Result<LifeIo> {
     let input = stream.try_clone()?;
-    input.set_write_timeout(Some(INPUT_TIMEOUT))?;
+    input.set_write_timeout(None)?;
+    let (frames, queue) = std::sync::mpsc::channel();
+    std::thread::Builder::new().name(format!("mx-ptyd-in-{generation}")).spawn(move || write_frames(input, queue))?;
     if let Ok(mut slot) = port.writer.lock() {
-        *slot = Some(Writer { generation, sink: Sink::Remote(input) });
+        *slot = Some(Writer { generation, sink: Sink::Remote(frames) });
     }
     let stop = Arc::new(AtomicBool::new(false));
     let wake = stream.try_clone()?;
@@ -206,6 +216,10 @@ impl Remote {
                             Ok((wire::DATA, bytes)) => self.feed(&bytes),
                             Ok((wire::EXIT, payload)) => {
                                 break 'outer wire::parse::<Exit>(&payload).ok().and_then(|e| e.code);
+                            }
+                            Ok((wire::TAKEN, _)) => {
+                                self.feed(crate::spawn::remark_line("sessão aberta em outra janela").as_bytes());
+                                return;
                             }
                             Ok(_) => {}
                             Err(_) => break 'outer None,

@@ -4,7 +4,7 @@ mod server;
 mod wire;
 
 pub use client::Ptyd;
-pub(crate) use client::{send_input, send_resize, spawn_request, start};
+pub(crate) use client::{input_frame, resize_frame, spawn_request, start};
 pub use server::{run, serve, socket_in};
 pub(crate) use wire::{Finished, Ready};
 pub use wire::Info;

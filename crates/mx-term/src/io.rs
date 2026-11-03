@@ -27,7 +27,7 @@ const HUP_RECHECK: Duration = Duration::from_millis(10);
 
 pub(crate) enum Sink {
     Pty { file: File, pending: Vec<u8>, waker: UnixStream },
-    Remote(UnixStream),
+    Remote(std::sync::mpsc::Sender<Vec<u8>>),
 }
 
 pub(crate) struct Writer {
@@ -48,8 +48,8 @@ impl Writer {
                     let _ = (&*waker).write(&[1]);
                 }
             }
-            Sink::Remote(stream) => {
-                let _ = crate::ptyd::send_input(stream, bytes);
+            Sink::Remote(frames) => {
+                let _ = frames.send(crate::ptyd::input_frame(bytes));
             }
         }
     }
@@ -122,8 +122,8 @@ impl Port {
                     };
                     let _ = rustix::termios::tcsetwinsize(file.as_fd(), ws);
                 }
-                Sink::Remote(stream) => {
-                    let _ = crate::ptyd::send_resize(stream, size);
+                Sink::Remote(frames) => {
+                    let _ = frames.send(crate::ptyd::resize_frame(size));
                 }
             }
         }
@@ -350,7 +350,7 @@ impl Life {
                 let Some(owner) = self.owner.upgrade() else { break };
                 let pty = &mut self.pty;
                 reported = owner.reap(self.generation, &mut || match pty.next_child_event() {
-                    Some(ChildEvent::Exited(status)) => Some(status.and_then(|s| exit_code(&s))),
+                    Some(ChildEvent::Exited(status)) => Some(status.and_then(|s| crate::signals::exit_code(&s))),
                     _ => None,
                 });
                 if hung_up {
@@ -448,9 +448,4 @@ impl Drop for Life {
     fn drop(&mut self) {
         release_writer(&self.port, self.generation);
     }
-}
-
-pub(crate) fn exit_code(status: &std::process::ExitStatus) -> Option<i32> {
-    use std::os::unix::process::ExitStatusExt;
-    status.code().or_else(|| status.signal().map(|s| -s))
 }

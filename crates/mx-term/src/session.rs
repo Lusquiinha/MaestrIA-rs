@@ -272,7 +272,7 @@ impl TerminalSession {
 
     fn spawn_remote(&self, plan: &spawn::SpawnPlan) -> bool {
         let Some(ptyd) = lock(&self.shared.ptyd).clone() else { return false };
-        let key = self.tab_id().unwrap_or_else(anonymous_key);
+        let Some(key) = self.tab_id() else { return false };
         let req = ptyd::spawn_request(&key, plan.clone(), self.shared.scrollback, self.size());
         let result = ptyd.spawn(&req).map_err(anyhow::Error::from).and_then(|(stream, ready)| self.adopt_remote(stream, &ready));
         match result {
@@ -663,11 +663,6 @@ impl TerminalSession {
     pub fn link_at(&self, col: usize, row: usize, base: Option<&str>) -> Option<String> {
         text::link_at_cell(&self.shared.term.lock(), col, row, base)
     }
-}
-
-fn anonymous_key() -> String {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    format!("anon-{}-{}", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
 fn side(right_half: bool) -> Side {
