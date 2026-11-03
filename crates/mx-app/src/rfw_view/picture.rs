@@ -13,6 +13,7 @@ use super::style::pxf;
 
 const BUDGET_BYTES: usize = 256 << 20;
 const MAX_ENTRIES: usize = 1024;
+const MIN_VARIANT_WIDTH: u32 = 32;
 
 type Key = (PathBuf, Option<SystemTime>, u64);
 
@@ -20,12 +21,24 @@ type Key = (PathBuf, Option<SystemTime>, u64);
 pub struct Loaded {
     pub image: Arc<RenderImage>,
     pub size: (u32, u32),
+    pub variants: Vec<(u32, u32, Arc<RenderImage>)>,
 }
 
 impl Loaded {
     fn bytes(&self) -> usize {
-        self.size.0 as usize * self.size.1 as usize * 4
+        self.variants.iter().map(|(w, h, _)| *w as usize * *h as usize * 4).sum()
     }
+}
+
+// gpui samples sprites bilinearly from a single mip level, so a PNG drawn far
+// below its size aliases; paint the halving level closest above the target.
+pub fn variant_for(loaded: &Loaded, target_w_px: f32) -> Arc<RenderImage> {
+    loaded
+        .variants
+        .iter()
+        .rev()
+        .find(|(w, _, _)| *w as f32 >= target_w_px)
+        .map_or_else(|| loaded.image.clone(), |(_, _, img)| img.clone())
 }
 
 struct Entry {
@@ -69,7 +82,7 @@ impl Cache {
         let old = self.entries.remove(i);
         self.bytes -= old.bytes();
         if let Some(l) = old.loaded {
-            self.stale.push(l.image);
+            self.stale.extend(l.variants.into_iter().map(|(_, _, img)| img));
         }
     }
 
@@ -127,7 +140,21 @@ fn decode(path: &Path) -> Option<Loaded> {
         px.0.swap(0, 2);
     }
     let size = img.dimensions();
-    Some(Loaded { image: Arc::new(RenderImage::new(vec![image::Frame::new(img)])), size })
+    let mut levels = vec![img];
+    loop {
+        let last = &levels[levels.len() - 1];
+        let (w, h) = (last.width() / 2, (last.height() / 2).max(1));
+        if w < MIN_VARIANT_WIDTH {
+            break;
+        }
+        let next = image::imageops::resize(last, w, h, image::imageops::FilterType::Triangle);
+        levels.push(next);
+    }
+    let variants: Vec<_> = levels
+        .into_iter()
+        .map(|l| (l.width(), l.height(), Arc::new(RenderImage::new(vec![image::Frame::new(l)]))))
+        .collect();
+    Some(Loaded { image: variants[0].2.clone(), size, variants })
 }
 
 pub fn load(path: &Path) -> Option<Loaded> {
@@ -202,7 +229,8 @@ pub fn render(cx: &mut Ctx, p: &Picture) -> El {
                     origin: bounds.origin + point(px(x as f32), px(y as f32)),
                     size: size(px(w as f32), px(h as f32)),
                 };
-                window.paint_image(at, Corners::default(), loaded.image.clone(), 0, false).ok();
+                let image = variant_for(&loaded, w as f32 * window.scale_factor());
+                window.paint_image(at, Corners::default(), image, 0, false).ok();
             },
         )
         .size_full(),

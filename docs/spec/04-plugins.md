@@ -1078,6 +1078,7 @@ Notation: `name: decoder = default`. "USED" lists what the real files pass.
 - Named `Picture`, not `Image`, because `core.widgets` already has `Image` and both libraries are usually imported together.
 - `path` is relative. It is looked up first in the plugin dir, then in the plugin data dir (`<state>/plugin-data/<id>`, the `dataDir` sent in `initialize`). Rejected: `..` anywhere, absolute paths, empty, files that do not exist.
 - Decoded with the `image` crate (PNG and the other formats it reads). Decoded images are cached by `(path, mtime, len)`, at most 64 (the oldest is dropped), so a file rewritten in place shows the new image on the next render.
+- Each decoded image also keeps a halving pyramid (Triangle filter, down to 32 px wide), counted in the cache's byte budget. It is painted from the smallest level at least as wide as its on-screen device px, because the renderer samples bilinearly from one level: a full-size screenshot drawn at a fraction of its size would alias and shimmer as it moves.
 - Size: `width`/`height` when given, otherwise the image's natural size (one missing side follows the aspect ratio). The image is drawn centered in that box per `fit` and clipped to it. A missing or unreadable file renders an empty box of `width`×`height`.
 
 **ZoomView additions** (Rust port only; capability `zoomFocus: 1`; the base widget is in `06-delta-2.4-to-2.7.md`)
