@@ -341,3 +341,21 @@ fn on_zoom_fires_again_when_the_content_resizes(cx: &mut TestAppContext) {
     let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
     assert!(fits[0] != fits[1], "{fits:?}");
 }
+
+#[gpui::test]
+fn a_fitted_child_follows_the_zoom_in_the_same_frame(cx: &mut TestAppContext) {
+    use mx_rfw::widgets::zoom_view::{BoxFit, Transform, fitted_scale};
+    let (view, cx) = open_view(cx, PLAN);
+    let (used, wanted) = cx.update(|window, app| {
+        view.update(app, |v, _| v.widget_states().zooms.each(|z| z.matrix = Transform { scale: 2.0, x: -140.0, y: -100.0 }));
+        window.refresh();
+        window.draw(app).clear();
+        let mut seen = (0.0, 0.0);
+        view.read(app).widget_states().fits.each(|f| {
+            let (o, n) = (f.outer.unwrap(), f.natural.unwrap());
+            seen = (f.used, fitted_scale(BoxFit::Contain, (f64::from(n.0), f64::from(n.1)), (f64::from(o.0), f64::from(o.1))) as f32);
+        });
+        seen
+    });
+    assert!((used - wanted).abs() / wanted < 0.01, "drawn at {used}, the zoomed box wants {wanted}");
+}

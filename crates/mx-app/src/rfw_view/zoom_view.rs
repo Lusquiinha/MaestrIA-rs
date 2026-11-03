@@ -26,6 +26,7 @@ const FIT_EPSILON: f64 = 0.001;
 
 thread_local! {
     static SCALE: Cell<f32> = const { Cell::new(1.0) };
+    static FIT_OUTER: Cell<Option<(f32, f32)>> = const { Cell::new(None) };
 }
 
 pub fn scale() -> f32 {
@@ -253,7 +254,8 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
         _ => None,
     });
     let scope = states.key_scope.borrow().clone();
-    let m = {
+    let fitted_child = content.is_some();
+    let (m, viewport) = {
         let mut st = slot.borrow_mut();
         st.content = content;
         if scope.is_some() {
@@ -263,10 +265,13 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             st.focus = states.take_focus();
         }
         st.command(z.command.as_deref(), z.focus, z.command_rev, z.max_scale, now);
-        st.current(now)
+        (st.current(now), st.bounds.map(|b| (f32::from(b.size.width), f32::from(b.size.height))))
     };
     let s = m.scale as f32;
+    // the FittedBox child would otherwise size itself from last frame's layer and lag a frame behind every zoom step
+    FIT_OUTER.set(viewport.filter(|_| fitted_child).map(|(w, h)| (w * s, h * s)));
     let inner = with_scale(s, || cx.within(true, |cx| optional(cx, z.child, Fit::BOTH)));
+    FIT_OUTER.set(None);
     let mut layer = cx.within(false, |cx| cx.el()).absolute().left(px(m.x as f32)).top(px(m.y as f32));
     layer = layer.w(relative(s)).h(relative(s)).text_size(px(DEFAULT_TEXT * s)).flex().flex_col();
     if let Some(i) = inner {
@@ -405,6 +410,7 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
 pub struct FitState {
     outer: Option<(f32, f32)>,
     natural: Option<(f32, f32)>,
+    used: f32,
 }
 
 pub type FitSlot = Rc<RefCell<FitState>>;
@@ -412,9 +418,10 @@ pub type FitSlot = Rc<RefCell<FitState>>;
 pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
     let Some(states) = cx.widgets else { return optional(cx, f.child, fit).unwrap_or_else(|| cx.el()) };
     let slot = states.fits.next();
+    let hint = FIT_OUTER.take();
     let (outer, natural) = {
         let st = slot.borrow();
-        (st.outer, st.natural)
+        (hint.or(st.outer), st.natural)
     };
     let s = match (outer, natural) {
         (Some(o), Some(n)) => {
@@ -422,6 +429,7 @@ pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
         }
         _ => scale(),
     };
+    slot.borrow_mut().used = s;
     let inner = with_scale(s, || cx.within(false, |cx| optional(cx, f.child, Fit { w: false, h: false })));
     let (ax, ay) = super::style::align_axes(&f.alignment);
     let (left, top) = match (outer, natural) {
@@ -462,7 +470,9 @@ pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
             let mut st = slot.borrow_mut();
             if st.outer != Some(o) {
                 st.outer = Some(o);
-                refresh_after_draw(window, cx);
+                if hint.is_none() {
+                    refresh_after_draw(window, cx);
+                }
             }
         },
         |_, _, _, _| {},
