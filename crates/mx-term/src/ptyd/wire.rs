@@ -19,6 +19,7 @@ pub(crate) const EXIT: u8 = b'X';
 pub(crate) const INFO: u8 = b'?';
 pub(crate) const SHUTDOWN: u8 = b'Q';
 pub(crate) const PRUNE: u8 = b'P';
+pub(crate) const HIBERNATE: u8 = b'H';
 
 const HEADER: usize = 5;
 const MAX_FRAME: usize = 64 << 20;
@@ -153,6 +154,14 @@ pub(crate) struct Finished {
     pub code: Option<i32>,
     pub size: Size,
     pub screen: String,
+    #[serde(default)]
+    pub hibernated: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct Hibernate {
+    pub after_secs: u64,
+    pub keys: Vec<String>,
 }
 
 pub(crate) fn screens_dir(socket: &Path) -> PathBuf {

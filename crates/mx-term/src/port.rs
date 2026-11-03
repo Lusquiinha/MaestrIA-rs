@@ -39,6 +39,10 @@ impl Term for TerminalSession {
         TerminalSession::keep_alive(self);
     }
 
+    fn slept_away(&self) -> bool {
+        TerminalSession::slept_away(self)
+    }
+
     fn relaunch(&mut self, command: &str, cwd: &str) {
         self.relaunch_now(command, cwd);
     }
@@ -120,6 +124,13 @@ impl TermRegistry {
 
     pub fn ptyd(&self) -> Option<Arc<Ptyd>> {
         self.inner.lock().ok().and_then(|r| r.ptyd.clone())
+    }
+
+    pub fn hibernate_when_idle(&self, tab_ids: Vec<String>, after: std::time::Duration) -> std::io::Result<()> {
+        match self.ptyd() {
+            Some(ptyd) if !tab_ids.is_empty() => ptyd.hibernate_when_idle(tab_ids, after),
+            _ => Ok(()),
+        }
     }
 
     pub fn prune_ptyd(&self) -> std::io::Result<usize> {

@@ -44,6 +44,11 @@ pub fn open_main_window(cx: &mut App) -> anyhow::Result<()> {
         quitting.update(cx, |h, _| {
             if h.terms.ptyd().is_some() && !h.store.prefs().end_sessions_on_quit {
                 h.store.keep_sessions_on_quit();
+                if let Some((ids, after)) = h.store.hibernatable_away()
+                    && let Err(err) = h.terms.hibernate_when_idle(ids, after)
+                {
+                    log::warn!("ptyd hibernation setup failed: {err}");
+                }
             }
             let rt = h.rt();
             let done = h.store.shutdown();

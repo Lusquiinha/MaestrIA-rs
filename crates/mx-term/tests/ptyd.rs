@@ -151,3 +151,26 @@ fn prune_ends_the_sessions_nobody_adopted() {
     assert!(until(Duration::from_secs(5), || d.info().unwrap().sessions == 1));
     assert!(!kept.is_exited());
 }
+
+#[test]
+fn a_quiet_session_without_the_app_is_hibernated_and_comes_back_asleep() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = daemon(dir.path());
+    let first = registry(&d);
+    let mut quiet = first.create("quiet");
+    quiet.start_command("sh -c 'echo pronto; sleep 30'", "/", None);
+    let mut chatty = first.create("chatty");
+    chatty.start_command("sh -c 'while true; do echo .; sleep 0.2; done'", "/", None);
+    quiet.keep_alive();
+    chatty.keep_alive();
+    first.hibernate_when_idle(vec!["quiet".into(), "chatty".into()], Duration::from_secs(1)).unwrap();
+    drop((quiet, chatty, first));
+    assert!(until(Duration::from_secs(8), || d.info().unwrap().sessions == 1));
+
+    let second = registry(&d);
+    let back = second.adopt_session("quiet").expect("the hibernated session comes back");
+    assert!(back.is_exited() && back.slept_away());
+    assert!(screen(&back).contains("pronto"));
+    let awake = second.adopt_session("chatty").expect("the busy one is still running");
+    assert!(!awake.is_exited());
+}

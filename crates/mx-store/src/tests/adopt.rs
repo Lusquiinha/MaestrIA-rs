@@ -99,3 +99,31 @@ fn ending_sessions_on_quit_is_a_saved_preference() {
     let saved = rig.written();
     assert_eq!(saved["endSessionsOnQuit"], json!(true));
 }
+
+#[test]
+fn a_claude_hibernated_while_the_app_was_closed_comes_back_asleep_and_wakes_with_resume() {
+    let mut rig = Rig::new();
+    rig.terms.hibernated_while_away("tabold_3");
+    let p = pane(&mut rig, "claude", "tabold_3");
+    restore(&mut rig, vec![p]);
+    assert!(rig.t("tabold_3").hibernated);
+    assert_eq!(rig.terms.log("tabold_3").remarks, [crate::HIBERNATED]);
+    rig.s.wake("tabold_3");
+    let commands = rig.terms.log("tabold_3").commands;
+    assert!(commands.len() == 1 && commands[0].contains("sess-1"));
+}
+
+#[test]
+fn quitting_hands_the_daemon_only_resumable_claudes_and_the_hibernation_time() {
+    let mut rig = Rig::new();
+    rig.s1();
+    rig.add_tab("c", "/repo", mx_core::model::TabKind::Claude, "/repo", None);
+    rig.tm("c").session_id = Some("sess-9".into());
+    rig.add_tab("n", "/repo", mx_core::model::TabKind::Claude, "/repo", None);
+    rig.shell("s");
+    rig.s.set_hibernate_minutes(30);
+    let (ids, after) = rig.s.hibernatable_away().unwrap();
+    assert_eq!((ids, after.as_secs()), (vec!["c".to_owned()], 1800));
+    rig.s.set_hibernate_minutes(0);
+    assert!(rig.s.hibernatable_away().is_none());
+}

@@ -105,6 +105,9 @@ pub trait Term: TermInput + Send {
     fn kill(&mut self) -> BoxFuture<'static, ()>;
     fn hang_up(&mut self);
     fn keep_alive(&mut self) {}
+    fn slept_away(&self) -> bool {
+        false
+    }
     fn relaunch(&mut self, command: &str, cwd: &str);
     fn submit(&mut self, text: &str);
     fn pid(&self) -> Option<u32>;

@@ -45,6 +45,7 @@ pub struct TermLog {
     pub keys: Vec<TermKey>,
     pub enters: usize,
     pub kept: bool,
+    pub slept: bool,
 }
 
 pub struct FakeTerm(Arc<Mutex<TermLog>>);
@@ -114,6 +115,10 @@ impl Term for FakeTerm {
         self.log().kept = true;
     }
 
+    fn slept_away(&self) -> bool {
+        self.log().slept
+    }
+
     fn relaunch(&mut self, command: &str, cwd: &str) {
         if self.log().exited {
             self.start_command(command, cwd, None);
@@ -145,7 +150,7 @@ pub struct FakeTerms {
     logs: Mutex<HashMap<String, Arc<Mutex<TermLog>>>>,
     next_pid: AtomicU32,
     live: Mutex<Vec<String>>,
-    finished: Mutex<Vec<(String, i32)>>,
+    finished: Mutex<Vec<(String, i32, bool)>>,
 }
 
 impl FakeTerms {
@@ -169,7 +174,11 @@ impl FakeTerms {
     }
 
     pub fn finished_while_away(&self, tab: &str, code: i32) {
-        self.finished.lock().unwrap().push((tab.to_owned(), code));
+        self.finished.lock().unwrap().push((tab.to_owned(), code, false));
+    }
+
+    pub fn hibernated_while_away(&self, tab: &str) {
+        self.finished.lock().unwrap().push((tab.to_owned(), -1, true));
     }
 
     pub fn give_pid(&self, tab: &str) -> u32 {
@@ -203,9 +212,9 @@ impl TermFactory for FakeTerms {
             }
             None => {
                 let mut done = self.finished.lock().unwrap();
-                let at = done.iter().position(|(t, _)| t == tab_id)?;
-                let (_, code) = done.remove(at);
-                TermLog { exited: true, code: Some(code), ..TermLog::default() }
+                let at = done.iter().position(|(t, _, _)| t == tab_id)?;
+                let (_, code, slept) = done.remove(at);
+                TermLog { exited: true, code: Some(code), slept, ..TermLog::default() }
             }
         };
         drop(live);

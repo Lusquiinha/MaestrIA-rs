@@ -112,12 +112,17 @@ impl Store {
             Some(l) => l.to_owned(),
             None => last_segment(&spec.cwd).to_owned(),
         });
+        let slept = adopted && term.slept_away();
         if adopted && term.exited() {
             tab.hooks.status = ClaudeStatus::Ended;
+            tab.hibernated = slept;
         } else if adopted {
             tab.hooks.settle();
         }
         self.register(tab, term, place);
+        if slept && let Some(term) = self.terms.get_mut(&id) {
+            term.remark(crate::hibernate::HIBERNATED);
+        }
         if adopted {
             self.sync_term(&id);
         } else if spec.start {
