@@ -153,7 +153,8 @@ impl ZoomState {
     }
 
     pub fn drag(&mut self, to: Point<Pixels>) -> bool {
-        let Some(from) = self.grab.replace(to) else { return false };
+        let Some(from) = self.grab else { return false };
+        self.grab = Some(to);
         let (dx, dy) = (f64::from(f32::from(to.x - from.x)), f64::from(f32::from(to.y - from.y)));
         let m = pan(self.matrix, dx, dy, self.size());
         let changed = m != self.matrix;

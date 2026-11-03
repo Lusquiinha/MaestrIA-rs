@@ -194,3 +194,30 @@ fn a_focusable_child_keeps_focus_when_clicked(cx: &mut TestAppContext) {
     let focused = cx.update(|window, app| field.read(app).focus.is_focused(window));
     assert!(focused, "the zoom view must not take focus from the TextInput under the pointer");
 }
+
+fn zoomed_state() -> super::ZoomState {
+    let bounds = Bounds::new(point(px(0.), px(0.)), size(px(1000.), px(800.)));
+    let mut st = super::ZoomState { bounds: Some(bounds), ..Default::default() };
+    st.wheel(point(px(500.), px(400.)), -100.0, 6.0);
+    st
+}
+
+#[test]
+fn drag_without_grab_never_pans() {
+    let mut st = zoomed_state();
+    let before = st.matrix;
+    for p in [point(px(10.), px(10.)), point(px(30.), px(25.)), point(px(60.), px(50.))] {
+        assert!(!st.drag(p));
+        assert_eq!(st.matrix, before);
+    }
+}
+
+#[test]
+fn drag_after_grab_pans() {
+    let mut st = zoomed_state();
+    let before = st.matrix;
+    st.grab = Some(point(px(100.), px(100.)));
+    assert!(st.drag(point(px(110.), px(105.))));
+    assert!((st.matrix.x - before.x - 10.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
+    assert!((st.matrix.y - before.y - 5.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
+}
