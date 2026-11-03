@@ -54,6 +54,7 @@ pub fn run(id: &str, action: A, window: &mut Window, cx: &mut App) {
         }),
         A::MoveTo => dialogs::move_to(&id, cx),
         A::SetDone(done) => set_done(&id, done, window, cx),
+        A::SetActiveTray(on) => ui::act(cx, |s| s.set_in_active_tray(&id, on)),
         A::PluginCommand(command) => ui::act(cx, |s| s.run_plugin_command(&command, Some(&id))),
         A::Close => drop(ui::act(cx, |s| s.close_tab(&id))),
         _ => {}

@@ -146,6 +146,7 @@ fn panel_spec(store: &Store, t: &Tab) -> PanelMenu {
         can_hibernate: t.can_hibernate(),
         close_chord: keys.first_label(Action::Close),
         hotkey: t.hotkey.as_deref().map(mx_store::hotkey_label),
+        active_tray: store.can_join_active_tray(&t.id).then_some(t.in_active_tray),
     }
 }
 

@@ -67,5 +67,10 @@ pub fn page(d: &mut SettingsDialog, _window: &mut Window, cx: &mut Context<Setti
     let bar = div().flex().flex_col()
         .child(heading("Barra de status", Some("A faixa com o resumo das sessões e o sino. O sino, a lista dele e os cartões de aviso ficam do mesmo lado que ela."), false, None, cx))
         .child(Toggle::new("bar-top", "Barra de status em cima", top, d.send(SettingsAction::SetStatusBarTop(!top))).subtitle("No topo da janela, em vez de no pé"));
-    div().flex().flex_col().child(themes).child(typography).child(bar).into_any_element()
+    let tray_on = data.active_tray;
+    let sidebar = div().flex().flex_col().mt(px(28.))
+        .child(heading("Barra lateral", Some("Atalhos no topo da lista de sessões."), false, None, cx))
+        .child(Toggle::new("active-tray", "Área \"Em andamento\"", tray_on, d.send(SettingsAction::SetActiveTray(!tray_on)))
+            .subtitle("As sessões em que você mandou um prompt aparecem no topo. Tirar uma de lá não fecha nem move a sessão."));
+    div().flex().flex_col().child(themes).child(typography).child(bar).child(sidebar).into_any_element()
 }

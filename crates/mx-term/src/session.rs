@@ -19,6 +19,7 @@ use crate::io::{self, ChildPoll, Feeder, LifeIo, LifeOwner, Port, Proxy, SharedT
 use crate::keys::Mods;
 use crate::mouse::{self, MouseAction, MouseButton};
 use crate::paste::paste_bytes;
+use crate::ptyd::{self, Ptyd};
 use crate::signals;
 use crate::snapshot::{Snapshot, snapshot_into};
 use crate::spawn::{self, Launch};
@@ -105,6 +106,8 @@ struct State {
     started: bool,
     exited: bool,
     exit_code: Option<i32>,
+    remote: bool,
+    slept_away: bool,
 }
 
 pub(crate) struct Shared {
@@ -118,6 +121,9 @@ pub(crate) struct Shared {
     on_exit: Mutex<Option<ExitHook>>,
     tab_id: Mutex<Option<String>>,
     events: async_channel::Receiver<TermEvent>,
+    ptyd: Mutex<Option<Arc<Ptyd>>>,
+    scrollback: usize,
+    kept: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -153,6 +159,9 @@ impl TerminalSession {
             on_exit: Mutex::new(None),
             tab_id: Mutex::new(None),
             events: rx,
+            ptyd: Mutex::new(None),
+            scrollback,
+            kept: AtomicBool::new(false),
         });
         Self { shared }
     }
@@ -181,6 +190,98 @@ impl TerminalSession {
 
     pub fn tab_id(&self) -> Option<String> {
         lock(&self.shared.tab_id).clone()
+    }
+
+    pub fn set_ptyd(&self, ptyd: Option<Arc<Ptyd>>) {
+        *lock(&self.shared.ptyd) = ptyd;
+    }
+
+    pub fn slept_away(&self) -> bool {
+        lock(&self.shared.state).slept_away
+    }
+
+    pub fn is_remote(&self) -> bool {
+        lock(&self.shared.state).remote
+    }
+
+    pub fn keep_alive(&self) {
+        if self.is_remote() {
+            self.shared.kept.store(true, Ordering::Release);
+        }
+    }
+
+    pub fn reattach(&self) -> bool {
+        let Some(ptyd) = lock(&self.shared.ptyd).clone() else { return false };
+        let Some(key) = self.tab_id() else { return false };
+        let (stream, ready) = match ptyd.attach(&key) {
+            Ok(found) => found,
+            Err(err) => {
+                log::info!("ptyd has nothing live for {key}: {err}");
+                return false;
+            }
+        };
+        if ready.exited {
+            return false;
+        }
+        let size = GridSize::from(ready.size);
+        *lock(&self.shared.port.size) = size;
+        self.shared.term.lock().resize(size);
+        match self.adopt_remote(stream, &ready) {
+            Ok(()) => true,
+            Err(err) => {
+                log::warn!("ptyd attach for {key} failed: {err:#}");
+                false
+            }
+        }
+    }
+
+    pub(crate) fn restore_finished(&self, finished: ptyd::Finished) {
+        let size = GridSize::from(finished.size);
+        *lock(&self.shared.port.size) = size;
+        self.shared.term.lock().resize(size);
+        self.feed(finished.screen.as_bytes());
+        if !finished.hibernated {
+            self.feed(spawn::exit_line(finished.code).as_bytes());
+        }
+        let mut st = lock(&self.shared.state);
+        st.started = true;
+        st.exited = true;
+        st.exit_code = finished.code;
+        st.slept_away = finished.hibernated;
+    }
+
+    fn adopt_remote(&self, stream: std::os::unix::net::UnixStream, ready: &ptyd::Ready) -> anyhow::Result<()> {
+        let mut st = lock(&self.shared.state);
+        self.retire_life(&mut st);
+        st.started = true;
+        st.exited = false;
+        st.exit_code = None;
+        st.pid = ready.pid;
+        st.remote = true;
+        let owner: Weak<dyn LifeOwner> = Arc::downgrade(&self.shared) as Weak<dyn LifeOwner>;
+        st.life = Some(ptyd::start(
+            stream,
+            st.generation,
+            self.shared.term.clone(),
+            self.shared.port.clone(),
+            self.shared.feeder.clone(),
+            owner,
+        )?);
+        Ok(())
+    }
+
+    fn spawn_remote(&self, plan: &spawn::SpawnPlan) -> bool {
+        let Some(ptyd) = lock(&self.shared.ptyd).clone() else { return false };
+        let Some(key) = self.tab_id() else { return false };
+        let req = ptyd::spawn_request(&key, plan.clone(), self.shared.scrollback, self.size());
+        let result = ptyd.spawn(&req).map_err(anyhow::Error::from).and_then(|(stream, ready)| self.adopt_remote(stream, &ready));
+        match result {
+            Ok(()) => true,
+            Err(err) => {
+                log::warn!("ptyd could not start {key}, running it in-process: {err:#}");
+                false
+            }
+        }
     }
 
     pub fn events(&self) -> async_channel::Receiver<TermEvent> {
@@ -247,6 +348,9 @@ impl TerminalSession {
 
     fn start(&self, launch: Launch, cwd: Option<PathBuf>, env: &HashMap<String, String>) -> anyhow::Result<()> {
         let plan = spawn::plan(mx_sys::shell::shell(), mx_sys::shell::env(), &launch, cwd, env);
+        if self.spawn_remote(&plan) {
+            return Ok(());
+        }
         let options = tty::Options {
             shell: Some(tty::Shell::new(plan.program, plan.args)),
             working_directory: plan.cwd,
@@ -261,6 +365,7 @@ impl TerminalSession {
         st.exited = false;
         st.exit_code = None;
         st.pid = Some(pty.child().id());
+        st.remote = false;
         let owner: Weak<dyn LifeOwner> = Arc::downgrade(&self.shared) as Weak<dyn LifeOwner>;
         st.life = Some(io::start(
             pty,
@@ -588,6 +693,9 @@ impl LifeOwner for Shared {
 
 impl Drop for Shared {
     fn drop(&mut self) {
+        if self.kept.load(Ordering::Acquire) {
+            return;
+        }
         let st = lock(&self.state);
         if let Some(pid) = st.pid.filter(|_| !st.exited) {
             signals::hang_up(pid);

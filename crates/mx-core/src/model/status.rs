@@ -27,6 +27,10 @@ impl ClaudeStatus {
         Self::Ended,
     ];
 
+    pub fn is_busy(self) -> bool {
+        matches!(self, Self::Working | Self::Tool)
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Unknown => "unknown",

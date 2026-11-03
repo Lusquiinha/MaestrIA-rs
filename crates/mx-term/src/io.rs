@@ -25,29 +25,45 @@ const MAX_LOCKED_READ: usize = 0x40000;
 const CHILD_CHECK: Duration = Duration::from_millis(500);
 const HUP_RECHECK: Duration = Duration::from_millis(10);
 
+pub(crate) enum Sink {
+    Pty { file: File, pending: Vec<u8>, waker: UnixStream },
+    Remote(std::sync::mpsc::Sender<Vec<u8>>),
+}
+
 pub(crate) struct Writer {
-    generation: u64,
-    file: File,
-    pending: Vec<u8>,
-    waker: UnixStream,
+    pub generation: u64,
+    pub sink: Sink,
 }
 
 impl Writer {
     fn push(&mut self, bytes: &[u8]) {
-        let mut rest = bytes;
-        if self.pending.is_empty() {
-            rest = write_some(&self.file, rest);
-        }
-        if !rest.is_empty() {
-            self.pending.extend_from_slice(rest);
-            let _ = (&self.waker).write(&[1]);
+        match &mut self.sink {
+            Sink::Pty { file, pending, waker } => {
+                let mut rest = bytes;
+                if pending.is_empty() {
+                    rest = write_some(file, rest);
+                }
+                if !rest.is_empty() {
+                    pending.extend_from_slice(rest);
+                    let _ = (&*waker).write(&[1]);
+                }
+            }
+            Sink::Remote(frames) => {
+                let _ = frames.send(crate::ptyd::input_frame(bytes));
+            }
         }
     }
 
     fn flush(&mut self) {
-        let left = write_some(&self.file, &self.pending).len();
-        let done = self.pending.len() - left;
-        self.pending.drain(..done);
+        if let Sink::Pty { file, pending, .. } = &mut self.sink {
+            let left = write_some(file, pending).len();
+            let done = pending.len() - left;
+            pending.drain(..done);
+        }
+    }
+
+    fn has_pending(&self) -> bool {
+        matches!(&self.sink, Sink::Pty { pending, .. } if !pending.is_empty())
     }
 }
 
@@ -96,13 +112,20 @@ impl Port {
         if let Ok(guard) = self.writer.lock()
             && let Some(writer) = guard.as_ref()
         {
-            let ws = rustix::termios::Winsize {
-                ws_row: size.rows,
-                ws_col: size.cols,
-                ws_xpixel: size.cols.saturating_mul(size.cell_width),
-                ws_ypixel: size.rows.saturating_mul(size.cell_height),
-            };
-            let _ = rustix::termios::tcsetwinsize(writer.file.as_fd(), ws);
+            match &writer.sink {
+                Sink::Pty { file, .. } => {
+                    let ws = rustix::termios::Winsize {
+                        ws_row: size.rows,
+                        ws_col: size.cols,
+                        ws_xpixel: size.cols.saturating_mul(size.cell_width),
+                        ws_ypixel: size.rows.saturating_mul(size.cell_height),
+                    };
+                    let _ = rustix::termios::tcsetwinsize(file.as_fd(), ws);
+                }
+                Sink::Remote(frames) => {
+                    let _ = frames.send(crate::ptyd::resize_frame(size));
+                }
+            }
         }
     }
 }
@@ -159,7 +182,7 @@ pub(crate) struct Feeder {
     parser: Processor,
     buf: Vec<u8>,
     out: Vec<u8>,
-    generation: u64,
+    pub(crate) generation: u64,
 }
 
 impl Feeder {
@@ -170,7 +193,7 @@ impl Feeder {
         self.advance(term, port);
     }
 
-    fn feed_from(&mut self, generation: u64, term: &SharedTerm, port: &Port, bytes: &[u8]) {
+    pub(crate) fn feed_from(&mut self, generation: u64, term: &SharedTerm, port: &Port, bytes: &[u8]) {
         if generation != self.generation {
             return;
         }
@@ -200,14 +223,14 @@ impl Feeder {
         port.sticky.written();
     }
 
-    fn deadline(&self) -> Option<Instant> {
+    pub(crate) fn deadline(&self) -> Option<Instant> {
         match (self.parser.sync_timeout().sync_timeout(), self.frames.deadline()) {
             (Some(a), Some(b)) => Some(a.min(b)),
             (a, b) => a.or(b),
         }
     }
 
-    fn expire(&mut self, term: &SharedTerm, port: &Port) {
+    pub(crate) fn expire(&mut self, term: &SharedTerm, port: &Port) {
         let now = Instant::now();
         self.out.clear();
         self.frames.expire(now, &mut self.out);
@@ -225,15 +248,27 @@ pub(crate) trait LifeOwner: Send + Sync + 'static {
     fn reap(&self, generation: u64, poll: ChildPoll<'_>) -> bool;
 }
 
+pub(crate) enum Wake {
+    Pipe(UnixStream),
+    Socket(UnixStream),
+}
+
 pub(crate) struct LifeIo {
     pub stop: Arc<AtomicBool>,
-    pub waker: UnixStream,
+    pub wake: Wake,
 }
 
 impl Drop for LifeIo {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
-        let _ = (&self.waker).write(&[1]);
+        match &self.wake {
+            Wake::Pipe(pipe) => {
+                let _ = (&*pipe).write(&[1]);
+            }
+            Wake::Socket(stream) => {
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+            }
+        }
     }
 }
 
@@ -250,9 +285,7 @@ pub(crate) fn start(
     wake_tx.set_nonblocking(true)?;
     let writer = Writer {
         generation,
-        file: pty.file().try_clone()?,
-        pending: Vec::new(),
-        waker: wake_tx.try_clone()?,
+        sink: Sink::Pty { file: pty.file().try_clone()?, pending: Vec::new(), waker: wake_tx.try_clone()? },
     };
     if let Ok(mut slot) = port.writer.lock() {
         *slot = Some(writer);
@@ -265,7 +298,7 @@ pub(crate) fn start(
             let mut life = Life { pty, generation, term, port, feeder, owner, wake_rx, stop: thread_stop };
             life.run();
         })?;
-    Ok(LifeIo { stop, waker: wake_tx })
+    Ok(LifeIo { stop, wake: Wake::Pipe(wake_tx) })
 }
 
 struct Life {
@@ -317,7 +350,7 @@ impl Life {
                 let Some(owner) = self.owner.upgrade() else { break };
                 let pty = &mut self.pty;
                 reported = owner.reap(self.generation, &mut || match pty.next_child_event() {
-                    Some(ChildEvent::Exited(status)) => Some(status.and_then(|s| exit_code(&s))),
+                    Some(ChildEvent::Exited(status)) => Some(status.and_then(|s| crate::signals::exit_code(&s))),
                     _ => None,
                 });
                 if hung_up {
@@ -343,7 +376,7 @@ impl Life {
         self.port
             .writer
             .lock()
-            .map(|w| w.as_ref().is_some_and(|w| w.generation == self.generation && !w.pending.is_empty()))
+            .map(|w| w.as_ref().is_some_and(|w| w.generation == self.generation && w.has_pending()))
             .unwrap_or(false)
     }
 
@@ -403,17 +436,16 @@ impl Life {
     }
 }
 
-impl Drop for Life {
-    fn drop(&mut self) {
-        if let Ok(mut slot) = self.port.writer.lock()
-            && slot.as_ref().is_some_and(|w| w.generation == self.generation)
-        {
-            *slot = None;
-        }
+pub(crate) fn release_writer(port: &Port, generation: u64) {
+    if let Ok(mut slot) = port.writer.lock()
+        && slot.as_ref().is_some_and(|w| w.generation == generation)
+    {
+        *slot = None;
     }
 }
 
-pub(crate) fn exit_code(status: &std::process::ExitStatus) -> Option<i32> {
-    use std::os::unix::process::ExitStatusExt;
-    status.code().or_else(|| status.signal().map(|s| -s))
+impl Drop for Life {
+    fn drop(&mut self) {
+        release_writer(&self.port, self.generation);
+    }
 }

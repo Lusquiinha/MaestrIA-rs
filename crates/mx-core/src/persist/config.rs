@@ -152,8 +152,11 @@ pub struct Config {
     pub sidebar_view: Option<String>,
     pub do_not_disturb: bool,
     pub suggestions_to_plugin: bool,
+    pub end_sessions_on_quit: bool,
     pub floats: Obj,
     pub groups_collapsed: bool,
+    pub active_tray: bool,
+    pub active_tray_collapsed: bool,
     pub hibernate_minutes: i64,
     pub auto_update: bool,
     pub theme: Option<String>,
@@ -179,8 +182,11 @@ impl Default for Config {
             sidebar_view: None,
             do_not_disturb: false,
             suggestions_to_plugin: false,
+            end_sessions_on_quit: false,
             floats: Obj::new(),
             groups_collapsed: false,
+            active_tray: false,
+            active_tray_collapsed: false,
             hibernate_minutes: DEFAULT_HIBERNATE_MINUTES,
             auto_update: false,
             theme: None,
@@ -246,10 +252,13 @@ impl Config {
         }
         flag(&mut m, "doNotDisturb", self.do_not_disturb);
         flag(&mut m, "suggestionsToPlugin", self.suggestions_to_plugin);
+        flag(&mut m, "endSessionsOnQuit", self.end_sessions_on_quit);
         if !self.floats.is_empty() {
             m.insert("floats".into(), Value::Object(self.floats.clone()));
         }
         flag(&mut m, "groupsCollapsed", self.groups_collapsed);
+        flag(&mut m, "activeTray", self.active_tray);
+        flag(&mut m, "activeTrayCollapsed", self.active_tray_collapsed);
         if self.hibernate_minutes != DEFAULT_HIBERNATE_MINUTES {
             m.insert("hibernateMinutes".into(), json!(self.hibernate_minutes));
         }

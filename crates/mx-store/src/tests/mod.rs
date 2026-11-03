@@ -1,3 +1,4 @@
+mod active_tray;
 mod config;
 mod features;
 mod flows;
@@ -5,6 +6,7 @@ mod groups;
 mod hibernate;
 mod history;
 mod layout;
+mod adopt;
 mod notices;
 mod pin;
 mod plugin_live;
@@ -158,6 +160,14 @@ impl Rig {
         self.advance(TimeDelta::milliseconds(400));
         let text = std::fs::read_to_string(self.s.opts.config_path()).expect("config written");
         serde_json::from_str(&text).unwrap()
+    }
+
+    pub fn transcript(&mut self, session_id: &str) {
+        let home = self.dir.path().join("chats");
+        let project = home.join("-repo");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(project.join(format!("{session_id}.jsonl")), "{}\n").unwrap();
+        self.s.opts.chat_home = home;
     }
 
     pub fn mkdir(&self, name: &str) -> String {

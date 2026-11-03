@@ -42,6 +42,14 @@ pub fn page(d: &mut SettingsDialog, cx: &mut Context<SettingsDialog>) -> AnyElem
         .into_any_element()
 }
 
+pub fn keep_on_quit_hint(keep: bool) -> &'static str {
+    if keep {
+        "Um Claude no meio de uma tarefa continua trabalhando. Ao abrir de novo, cada painel volta como estiver: ainda rodando, ou terminado com a tela do que fez."
+    } else {
+        "Fechar encerra todos os terminais. Ao abrir de novo, os painéis voltam e o Claude retoma a conversa com --resume."
+    }
+}
+
 pub fn sessions(d: &mut SettingsDialog, cx: &mut Context<SettingsDialog>) -> AnyElement {
     let m = d.data.hibernate_minutes;
     let on = m > 0;
@@ -61,5 +69,17 @@ pub fn sessions(d: &mut SettingsDialog, cx: &mut Context<SettingsDialog>) -> Any
         let more = (m < MAX_HIBERNATE).then(|| Rc::new(d.send(SettingsAction::SetHibernateMinutes(hibernate_more(m)))) as _);
         col = col.child(div().mt(px(14.)).flex().child(Stepper::new("hibernate-after", "Depois de quanto tempo parada", hibernate_label(m), less, more)));
     }
-    col.into_any_element()
+    let keep = d.data.keep_on_quit;
+    col.child(div().mt(px(24.)).child(heading(
+        "Ao fechar o app",
+        Some("Os terminais rodam num processo à parte, então fechar o app não precisa encerrar o que está rodando."),
+        false,
+        None,
+        cx,
+    )))
+    .child(
+        Toggle::new("keep-on-quit", "Deixar as sessões rodando quando o app fecha", keep, d.send(SettingsAction::SetKeepOnQuit(!keep)))
+            .subtitle(keep_on_quit_hint(keep)),
+    )
+    .into_any_element()
 }

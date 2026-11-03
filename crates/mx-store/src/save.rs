@@ -42,7 +42,7 @@ impl Store {
         }
     }
 
-    fn saved_tabs(&self) -> Vec<&Tab> {
+    pub(crate) fn saved_tabs(&self) -> Vec<&Tab> {
         self.tabs
             .iter()
             .filter(|t| !t.is_plugin_view() && t.owner.is_none() && (!t.exited || t.resumable()))
@@ -78,8 +78,11 @@ impl Store {
             sidebar_view: p.sidebar_view.clone(),
             do_not_disturb: p.do_not_disturb,
             suggestions_to_plugin: p.suggestions_to_plugin,
+            end_sessions_on_quit: p.end_sessions_on_quit,
             floats: p.floats.clone(),
             groups_collapsed: p.groups_collapsed,
+            active_tray: p.active_tray,
+            active_tray_collapsed: p.active_tray_collapsed,
             hibernate_minutes: p.hibernate_minutes,
             auto_update: self.updates.app.active(),
             theme: Some(p.theme.clone()),

@@ -44,6 +44,7 @@ pub fn data() -> SettingsData {
         faces: vec![HACK, mx_theme::FACES.iter().copied().find(|f| f.family == "DejaVu Sans Mono").unwrap_or(HACK)],
         zoom_keys: ("Ctrl+=".into(), "Ctrl+−".into()),
         status_bar_top: false,
+        active_tray: false,
         shortcuts: shortcuts(),
         fixed: fixed_rows(true),
         launchers: vec![
@@ -56,6 +57,7 @@ pub fn data() -> SettingsData {
         ],
         plugin_auto: PluginAuto { on: true, checking: false, checked_at: Some("14:32".into()), error: None },
         hibernate_minutes: 30,
+        keep_on_quit: true,
         app_updates: AppUpdates { current: "3.0.0".into(), enabled: true, active: false, installs_on_quit: cfg!(target_os = "macos") },
         account: Account::Ready {
             org: "Marrow".into(),

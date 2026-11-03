@@ -15,6 +15,14 @@ impl Store {
         self.prefs.hibernate_minutes > 0
     }
 
+    pub fn hibernatable_away(&self) -> Option<(Vec<String>, std::time::Duration)> {
+        if !self.auto_hibernate() {
+            return None;
+        }
+        let ids = self.tabs.iter().filter(|t| t.can_hibernate()).map(|t| t.id.clone()).collect();
+        Some((ids, std::time::Duration::from_secs(self.prefs.hibernate_minutes as u64 * 60)))
+    }
+
     pub fn hibernate(&mut self, id: &str) {
         let Some(t) = self.tab_mut(id) else { return };
         if !t.can_hibernate() {
@@ -80,7 +88,7 @@ impl Store {
     }
 
     pub(crate) fn relaunch_woken(&mut self, id: &str) {
-        let Some(resume) = self.tab(id).map(|t| t.resume_id().map(str::to_owned)) else {
+        let Some(resume) = self.tab(id).map(|t| t.session_id.clone()) else {
             return;
         };
         self.launch_claude(id, resume, None);

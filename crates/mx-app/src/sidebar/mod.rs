@@ -1,3 +1,4 @@
+mod active_tray;
 pub mod glyph;
 mod search;
 mod tab_row;
@@ -105,6 +106,9 @@ impl Sidebar {
         };
         let filtering = store.filtering();
         let mut items: Vec<AnyElement> = Vec::new();
+        if let Some(a) = ctx.active_tray() {
+            items.push(a);
+        }
         if let Some(g) = ctx.groups_tray() {
             items.push(g);
         }

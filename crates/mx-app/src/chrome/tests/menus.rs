@@ -148,3 +148,13 @@ fn worktree_menu_copies_path_and_ghost_offers_clear_record() {
     assert_eq!(ghost, vec!["Copiar caminho", "Limpar registro…"]);
     assert!(!labels(&builders::worktree_menu(&[], true, false)).contains(&"Excluir worktree…".to_owned()));
 }
+
+#[test]
+fn the_active_tray_item_follows_the_session_state_and_hides_when_the_tray_is_off() {
+    let off = labels(&panel::panel_menu(&PanelMenu { kind: PanelKind::Claude, ..Default::default() }));
+    assert!(!off.iter().any(|l| l.contains("Em andamento")));
+    let out = labels(&panel::panel_menu(&PanelMenu { kind: PanelKind::Claude, active_tray: Some(false), ..Default::default() }));
+    pos(&out, "Pôr em \"Em andamento\"");
+    let inside = labels(&panel::panel_menu(&PanelMenu { kind: PanelKind::Claude, active_tray: Some(true), ..Default::default() }));
+    pos(&inside, "Tirar de \"Em andamento\"");
+}

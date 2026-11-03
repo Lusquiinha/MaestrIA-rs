@@ -14,9 +14,11 @@ pub fn title(version: &str) -> String {
     format!("Atualizar pra {version}?")
 }
 
-pub fn lines(version: &str, live: usize, installs_on_quit: bool) -> Vec<(Icon, String)> {
+pub fn lines(version: &str, live: usize, kept: bool, installs_on_quit: bool) -> Vec<(Icon, String)> {
     let restart = if live == 0 {
         format!("O app fecha e abre de novo, já na {version}")
+    } else if kept {
+        format!("O app fecha e abre de novo, já na {version}; as {live} sessões abertas continuam rodando")
     } else {
         format!("O app fecha e abre de novo: as {live} sessões abertas são encerradas, e os painéis voltam como estavam")
     };
@@ -72,7 +74,8 @@ pub fn confirm(cx: &mut App) {
     let store = ui::store(cx);
     let Some(version) = store.app_updater().release().map(|r| r.version.clone()) else { return };
     let live = crate::status_bar::Summary::of(store).sessions;
-    let lines = lines(&version, live, INSTALLS_ON_QUIT);
+    let kept = ui::host(cx).read(cx).terms.ptyd().is_some();
+    let lines = lines(&version, live, kept, INSTALLS_ON_QUIT);
     let generation = ui::upcoming(cx);
     let view = cx.new(|_| UpdateConfirm { version, lines, generation });
     ui::modal(view.into(), cx);
@@ -104,16 +107,24 @@ mod tests {
     #[test]
     fn the_confirm_counts_the_sessions_that_close() {
         assert_eq!(title("3.1.0"), "Atualizar pra 3.1.0?");
-        assert_eq!(lines("3.1.0", 0, false)[0].1, "O app fecha e abre de novo, já na 3.1.0");
+        assert_eq!(lines("3.1.0", 0, false, false)[0].1, "O app fecha e abre de novo, já na 3.1.0");
         assert_eq!(
-            lines("3.1.0", 2, false)[0].1,
+            lines("3.1.0", 2, false, false)[0].1,
             "O app fecha e abre de novo: as 2 sessões abertas são encerradas, e os painéis voltam como estavam"
         );
     }
 
     #[test]
+    fn with_the_terminal_daemon_the_sessions_survive_the_update() {
+        assert_eq!(
+            lines("3.1.0", 2, true, false)[0].1,
+            "O app fecha e abre de novo, já na 3.1.0; as 2 sessões abertas continuam rodando"
+        );
+    }
+
+    #[test]
     fn linux_asks_for_the_password_and_mac_waits_for_quit() {
-        assert_eq!(lines("3.1.0", 0, false)[1], (icon::LOCK_OUTLINE_ROUNDED, "O sistema vai pedir a sua senha pra instalar o pacote".into()));
-        assert_eq!(lines("3.1.0", 0, true)[1], (icon::SCHEDULE_ROUNDED, "Sem pressa: ela entra sozinha quando você fechar o app".into()));
+        assert_eq!(lines("3.1.0", 0, false, false)[1], (icon::LOCK_OUTLINE_ROUNDED, "O sistema vai pedir a sua senha pra instalar o pacote".into()));
+        assert_eq!(lines("3.1.0", 0, false, true)[1], (icon::SCHEDULE_ROUNDED, "Sem pressa: ela entra sozinha quando você fechar o app".into()));
     }
 }

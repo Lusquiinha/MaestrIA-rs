@@ -45,7 +45,10 @@ impl Store {
             sidebar_view: c.sidebar_view,
             do_not_disturb: c.do_not_disturb,
             suggestions_to_plugin: c.suggestions_to_plugin,
+            end_sessions_on_quit: c.end_sessions_on_quit,
             groups_collapsed: c.groups_collapsed,
+            active_tray: c.active_tray,
+            active_tray_collapsed: c.active_tray_collapsed,
             hibernate_minutes: c.hibernate_minutes,
             shortcuts: c.shortcuts,
             plugins: c.plugins,
@@ -97,6 +100,7 @@ impl Store {
                     tab.hooks.suggestions.extend(entry.suggestions);
                     tab.done = entry.done;
                     tab.pinned = entry.pinned;
+                    tab.in_active_tray = entry.in_active_tray;
                     tab.hotkey = entry.hotkey.as_deref().and_then(crate::tabs_ops::valid_hotkey);
                     if known_group.is_some() {
                         tab.group_id = known_group;
@@ -113,7 +117,17 @@ impl Store {
             self.panes = tree;
         }
         self.focused = r.focused.or_else(|| self.order().into_iter().next());
+        self.save();
         self.mark(Areas::ALL);
+    }
+
+    fn adoptable(&self, e: &PaneEntry) -> Option<(String, Box<dyn mx_core::ports::Term>)> {
+        if !matches!(e.kind, PaneKind::Claude | PaneKind::Shell) || e.asleep() {
+            return None;
+        }
+        let id = e.tab_id.as_deref().filter(|id| self.tab(id).is_none())?;
+        let term = self.p.terms.adopt(id)?;
+        Some((id.to_owned(), term))
     }
 
     pub(crate) fn open_pane(&mut self, e: &PaneEntry) -> Option<String> {
@@ -130,6 +144,7 @@ impl Store {
             .feature_or_hotfix_id
             .clone()
             .filter(|id| self.feature_by_id(id).is_some());
+        self.adopting = self.adoptable(e);
         let id = match e.kind {
             PaneKind::Browser => return None,
             PaneKind::Reader => {
@@ -160,6 +175,7 @@ impl Store {
                 self.open_shell(&folder, Some(&cwd), None, feature.as_deref(), launcher.as_deref())
             }
         };
+        self.adopting = None;
         let zoom = self.prefs.typography.clamp_zoom(e.zoom) as i32;
         if let Some(tab) = self.tab_mut(&id) {
             if let Some(label) = &e.label {

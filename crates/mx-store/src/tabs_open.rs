@@ -68,17 +68,16 @@ impl Store {
         place: bool,
     ) -> String {
         let cwd = cwd.unwrap_or(&folder.root).to_owned();
-        let id = self.next_tab_id();
+        let (id, term, adopted) = self.new_term();
         let mut tab = Tab::new(&id, folder, TabKind::Shell, &cwd, self.now());
         let launcher = launcher.and_then(|l| self.launcher_by_id(l)).cloned();
         tab.launcher_id = launcher.as_ref().map(|l| l.id.clone());
         tab.feature_or_hotfix_id = self.attachable(folder, feature);
-        let term = self.p.terms.create(&id);
         self.register(tab, term, place);
         let run = command
             .map(str::to_owned)
             .or_else(|| launcher.map(|l| l.command));
-        if let Some(term) = self.terms.get_mut(&id) {
+        if !adopted && let Some(term) = self.terms.get_mut(&id) {
             match &run {
                 None => term.start_shell(&cwd),
                 Some(r) => term.start_command(r, &cwd, None),
@@ -104,7 +103,7 @@ impl Store {
     }
 
     pub fn open_claude_placed(&mut self, spec: ClaudeSpec, place: bool) -> String {
-        let id = self.next_tab_id();
+        let (id, term, adopted) = self.new_term();
         let mut tab = Tab::new(&id, &spec.folder, TabKind::Claude, &spec.cwd, self.now());
         tab.custom_label = spec.label.clone();
         tab.session_id = spec.resume_id.clone();
@@ -113,9 +112,20 @@ impl Store {
             Some(l) => l.to_owned(),
             None => last_segment(&spec.cwd).to_owned(),
         });
-        let term = self.p.terms.create(&id);
+        let slept = adopted && term.slept_away();
+        if adopted && term.exited() {
+            tab.hooks.status = ClaudeStatus::Ended;
+            tab.hibernated = slept;
+        } else if adopted {
+            tab.hooks.settle();
+        }
         self.register(tab, term, place);
-        if spec.start {
+        if slept && let Some(term) = self.terms.get_mut(&id) {
+            term.remark(crate::hibernate::HIBERNATED);
+        }
+        if adopted {
+            self.sync_term(&id);
+        } else if spec.start {
             self.launch_claude(&id, spec.resume_id, spec.prompt);
         } else {
             if let Some(term) = self.terms.get_mut(&id) {

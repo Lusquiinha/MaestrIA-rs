@@ -385,9 +385,54 @@ fn a_hook_reported_session_id_survives_the_agents_poll() {
         state: None,
         started_at: None,
     };
+    rig.transcript("velho");
+    rig.transcript("novo");
     rig.s.apply_agents(vec![agent("velho")]);
     assert_eq!(rig.t("c1").resume_id(), Some("velho"));
     rig.hook("c1", "SessionStart", json!({"session_id": "novo"}));
     rig.s.apply_agents(vec![agent("velho")]);
     assert_eq!(rig.t("c1").resume_id(), Some("novo"));
+}
+
+#[test]
+fn an_announced_session_without_a_saved_conversation_never_replaces_the_real_one() {
+    let mut rig = Rig::new();
+    rig.s1();
+    claude(&mut rig, "c1");
+    rig.transcript("real");
+    rig.hook("c1", "UserPromptSubmit", json!({"session_id": "real"}));
+    assert_eq!(rig.t("c1").session_id.as_deref(), Some("real"));
+    rig.hook("c1", "SessionStart", json!({"session_id": "vazia", "source": "startup"}));
+    assert_eq!(rig.t("c1").session_id.as_deref(), Some("real"));
+    rig.s.hibernate("c1");
+    rig.s.wake("c1");
+    rig.s.woken_after_kill("c1");
+    let last = rig.terms.log("c1").commands.last().cloned().unwrap();
+    assert!(last.contains("real") && !last.contains("vazia"), "{last}");
+}
+
+#[test]
+fn the_announced_session_is_adopted_once_its_conversation_is_saved() {
+    let mut rig = Rig::new();
+    rig.s1();
+    claude(&mut rig, "c1");
+    rig.tm("c1").session_id = None;
+    rig.hook("c1", "SessionStart", json!({"session_id": "nova", "source": "startup"}));
+    assert_eq!(rig.t("c1").session_id, None);
+    assert!(!rig.t("c1").can_hibernate());
+    rig.transcript("nova");
+    rig.hook("c1", "Stop", json!({"session_id": "nova"}));
+    assert_eq!(rig.t("c1").session_id.as_deref(), Some("nova"));
+}
+
+#[test]
+fn the_hook_transcript_path_is_enough_to_trust_the_session() {
+    let mut rig = Rig::new();
+    rig.s1();
+    claude(&mut rig, "c1");
+    rig.tm("c1").session_id = None;
+    let file = rig.dir.path().join("em-outro-lugar.jsonl");
+    std::fs::write(&file, "{}\n").unwrap();
+    rig.hook("c1", "UserPromptSubmit", json!({"session_id": "x", "transcript_path": file}));
+    assert_eq!(rig.t("c1").session_id.as_deref(), Some("x"));
 }

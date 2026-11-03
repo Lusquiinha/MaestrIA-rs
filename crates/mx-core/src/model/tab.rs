@@ -85,6 +85,7 @@ pub struct Tab {
     pub group_id: Option<String>,
     pub done: bool,
     pub pinned: bool,
+    pub in_active_tray: bool,
     pub on_sessions: bool,
     pub hibernated: bool,
     pub rested_at: Option<Time>,
@@ -131,6 +132,7 @@ impl Tab {
             group_id: None,
             done: false,
             pinned: false,
+            in_active_tray: false,
             on_sessions: false,
             hibernated: false,
             rested_at: None,
@@ -163,14 +165,14 @@ impl Tab {
     }
 
     pub fn resumable(&self) -> bool {
-        self.kind == TabKind::Claude && self.resume_id().is_some()
+        self.kind == TabKind::Claude && self.session_id.is_some()
     }
 
     pub fn can_hibernate(&self) -> bool {
         self.kind == TabKind::Claude
             && !self.exited
             && !self.hibernated
-            && self.resume_id().is_some()
+            && self.session_id.is_some()
     }
 
     pub fn status(&self) -> ClaudeStatus {
@@ -291,7 +293,7 @@ impl Tab {
             m.insert("tint".into(), json!(t.name()));
         }
         if self.resumable()
-            && let Some(id) = self.resume_id()
+            && let Some(id) = self.session_id.as_deref()
         {
             m.insert("sessionId".into(), json!(id));
         }
@@ -332,8 +334,14 @@ impl Tab {
         if self.pinned {
             m.insert("pinned".into(), json!(true));
         }
+        if self.in_active_tray {
+            m.insert("activeTray".into(), json!(true));
+        }
         if let Some(k) = &self.hotkey {
             m.insert("hotkey".into(), json!(k));
+        }
+        if matches!(self.kind, TabKind::Shell | TabKind::Claude) && !self.exited && !self.hibernated {
+            m.insert("tabId".into(), json!(self.id));
         }
         Value::Object(m)
     }

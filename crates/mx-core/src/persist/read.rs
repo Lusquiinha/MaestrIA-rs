@@ -159,12 +159,15 @@ impl Config {
         c.sidebar_view = get_str(j, "sidebarView").lenient().map(str::to_owned);
         c.do_not_disturb = bool_or(j, "doNotDisturb", &mut skipped);
         c.suggestions_to_plugin = bool_or(j, "suggestionsToPlugin", &mut skipped);
+        c.end_sessions_on_quit = bool_or(j, "endSessionsOnQuit", &mut skipped);
         c.floats = j
             .get("floats")
             .and_then(Value::as_object)
             .cloned()
             .unwrap_or_default();
         c.groups_collapsed = bool_or(j, "groupsCollapsed", &mut skipped);
+        c.active_tray = bool_or(j, "activeTray", &mut skipped);
+        c.active_tray_collapsed = bool_or(j, "activeTrayCollapsed", &mut skipped);
         c.hibernate_minutes = get_num(j, "hibernateMinutes")
             .lenient()
             .map_or(DEFAULT_HIBERNATE_MINUTES, |n| n.trunc() as i64);

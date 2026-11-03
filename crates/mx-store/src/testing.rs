@@ -44,6 +44,8 @@ pub struct TermLog {
     pub trust: bool,
     pub keys: Vec<TermKey>,
     pub enters: usize,
+    pub kept: bool,
+    pub slept: bool,
 }
 
 pub struct FakeTerm(Arc<Mutex<TermLog>>);
@@ -109,6 +111,14 @@ impl Term for FakeTerm {
         self.log().hang_ups += 1;
     }
 
+    fn keep_alive(&mut self) {
+        self.log().kept = true;
+    }
+
+    fn slept_away(&self) -> bool {
+        self.log().slept
+    }
+
     fn relaunch(&mut self, command: &str, cwd: &str) {
         if self.log().exited {
             self.start_command(command, cwd, None);
@@ -139,6 +149,8 @@ impl Term for FakeTerm {
 pub struct FakeTerms {
     logs: Mutex<HashMap<String, Arc<Mutex<TermLog>>>>,
     next_pid: AtomicU32,
+    live: Mutex<Vec<String>>,
+    finished: Mutex<Vec<(String, i32, bool)>>,
 }
 
 impl FakeTerms {
@@ -155,6 +167,18 @@ impl FakeTerms {
         if let Some(l) = self.logs.lock().unwrap().get(tab) {
             f(&mut l.lock().unwrap());
         }
+    }
+
+    pub fn still_running(&self, tab: &str) {
+        self.live.lock().unwrap().push(tab.to_owned());
+    }
+
+    pub fn finished_while_away(&self, tab: &str, code: i32) {
+        self.finished.lock().unwrap().push((tab.to_owned(), code, false));
+    }
+
+    pub fn hibernated_while_away(&self, tab: &str) {
+        self.finished.lock().unwrap().push((tab.to_owned(), -1, true));
     }
 
     pub fn give_pid(&self, tab: &str) -> u32 {
@@ -177,6 +201,26 @@ impl TermFactory for FakeTerms {
         let log = Arc::new(Mutex::new(TermLog::default()));
         self.logs.lock().unwrap().insert(tab_id.to_owned(), log.clone());
         Box::new(FakeTerm(log))
+    }
+
+    fn adopt(&self, tab_id: &str) -> Option<Box<dyn Term>> {
+        let mut live = self.live.lock().unwrap();
+        let log = match live.iter().position(|t| t == tab_id) {
+            Some(at) => {
+                live.remove(at);
+                TermLog { pid: Some(4242), ..TermLog::default() }
+            }
+            None => {
+                let mut done = self.finished.lock().unwrap();
+                let at = done.iter().position(|(t, _, _)| t == tab_id)?;
+                let (_, code, slept) = done.remove(at);
+                TermLog { exited: true, code: Some(code), slept, ..TermLog::default() }
+            }
+        };
+        drop(live);
+        let log = Arc::new(Mutex::new(log));
+        self.logs.lock().unwrap().insert(tab_id.to_owned(), log.clone());
+        Some(Box::new(FakeTerm(log)))
     }
 }
 
