@@ -301,6 +301,8 @@ fn false_booleans_and_defaults_are_never_written() {
         do_not_disturb: true,
         suggestions_to_plugin: true,
         groups_collapsed: true,
+        active_tray: true,
+        active_tray_collapsed: true,
         hibernate_minutes: 0,
         rail_order: vec!["p".into()],
         sidebar_view: Some("p".into()),
@@ -321,6 +323,8 @@ fn false_booleans_and_defaults_are_never_written() {
             "doNotDisturb",
             "suggestionsToPlugin",
             "groupsCollapsed",
+            "activeTray",
+            "activeTrayCollapsed",
             "hibernateMinutes",
             "theme",
             "layout"

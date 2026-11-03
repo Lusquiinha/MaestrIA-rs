@@ -1,5 +1,5 @@
 use mx_core::hook;
-use mx_core::model::{AgentInfo, ClaudeStatus, ContextUsage, NoticeKind, Tab};
+use mx_core::model::{AgentInfo, ClaudeStatus, ContextUsage, NoticeKind, Tab, TabKind};
 use mx_plugins::host_json::context_json;
 use serde_json::{Map, Value, json};
 
@@ -25,6 +25,7 @@ impl Store {
         let now = self.now();
         let home = self.opts.home.clone();
         let payload = Value::Object(payload);
+        let joins_tray = self.prefs.active_tray && name == "UserPromptSubmit";
         let Some(t) = self.tab_mut(tab) else { return };
         let before = t.hooks.status;
         let produced = t.hooks.touched.len();
@@ -33,6 +34,11 @@ impl Store {
         let mut save = false;
         if t.done && name == "UserPromptSubmit" {
             t.done = false;
+            save = true;
+        }
+        let joined = joins_tray && t.kind == TabKind::Claude && !t.in_active_tray;
+        if joined {
+            t.in_active_tray = true;
             save = true;
         }
         if let Some(sid) = t.hooks.session_id.clone()
@@ -60,6 +66,9 @@ impl Store {
         }
         if save {
             self.save();
+        }
+        if joined {
+            self.mark(Areas::SIDEBAR);
         }
         if after != before {
             self.status_notice(tab, before, after);

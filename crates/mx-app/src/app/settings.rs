@@ -126,6 +126,7 @@ pub fn data(host: &Entity<StoreHost>, cx: &App) -> SettingsData {
         faces: mx_theme::installed_faces(&installed),
         zoom_keys: keymap::zoom_keys(&map),
         status_bar_top: prefs.status_bar_top,
+        active_tray: prefs.active_tray,
         shortcuts: keymap::shortcut_rows(&map),
         fixed: fixed_rows(true),
         launchers: store
@@ -233,6 +234,7 @@ fn act(action: SettingsAction, window: &mut Window, cx: &mut App) {
         S::SetTheme(id) => ui::act(cx, |s| s.set_theme(&id)),
         S::SetTypography(t) => ui::act(cx, |s| s.set_typography(store_typography(&t))),
         S::SetStatusBarTop(top) => ui::act(cx, |s| s.set_status_bar_top(top)),
+        S::SetActiveTray(on) => ui::act(cx, |s| s.set_active_tray(on)),
         S::ResetShortcuts(_) | S::Bind { .. } | S::Unbind { .. } => drop(ui::act(cx, |s| keymap::apply(s, &action))),
         S::NewLauncher => dialogs::launcher_form(None, None, window, cx),
         S::EditLauncher(id) => dialogs::launcher_form(Some(id), None, window, cx),

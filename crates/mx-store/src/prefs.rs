@@ -19,6 +19,8 @@ pub struct Prefs {
     pub do_not_disturb: bool,
     pub suggestions_to_plugin: bool,
     pub groups_collapsed: bool,
+    pub active_tray: bool,
+    pub active_tray_collapsed: bool,
     pub hibernate_minutes: i64,
     pub shortcuts: Obj,
     pub plugins: Obj,
@@ -38,6 +40,8 @@ impl Default for Prefs {
             do_not_disturb: false,
             suggestions_to_plugin: false,
             groups_collapsed: false,
+            active_tray: false,
+            active_tray_collapsed: false,
             hibernate_minutes: DEFAULT_HIBERNATE_MINUTES,
             shortcuts: Obj::new(),
             plugins: Obj::new(),
@@ -51,7 +55,7 @@ impl Store {
         &self.prefs
     }
 
-    fn set_pref<T: PartialEq>(&mut self, value: T, field: impl Fn(&mut Prefs) -> &mut T) -> bool {
+    pub(crate) fn set_pref<T: PartialEq>(&mut self, value: T, field: impl Fn(&mut Prefs) -> &mut T) -> bool {
         let slot = field(&mut self.prefs);
         if *slot == value {
             return false;
