@@ -38,6 +38,18 @@ const DEMO_TERMINAL: &str = "MAESTRIA_DEMO_TERMINAL";
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let mut args = std::env::args_os().skip(1);
+    if args.next().is_some_and(|a| a == mx_term::ptyd::FLAG) {
+        let Some(socket) = args.next() else {
+            log::error!("{} needs the socket path", mx_term::ptyd::FLAG);
+            std::process::exit(2);
+        };
+        if let Err(err) = mx_term::ptyd::run(std::path::Path::new(&socket)) {
+            log::error!("ptyd: {err:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     Application::new().with_assets(app::assets::Assets).run(|cx: &mut App| {
         if let Err(err) = cx
             .text_system()

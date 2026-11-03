@@ -78,6 +78,7 @@ impl Store {
             sidebar_view: p.sidebar_view.clone(),
             do_not_disturb: p.do_not_disturb,
             suggestions_to_plugin: p.suggestions_to_plugin,
+            end_sessions_on_quit: p.end_sessions_on_quit,
             floats: p.floats.clone(),
             groups_collapsed: p.groups_collapsed,
             active_tray: p.active_tray,

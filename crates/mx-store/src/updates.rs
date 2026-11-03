@@ -49,6 +49,7 @@ impl Store {
 
     pub fn relaunch_after_quit(&mut self) {
         self.updates.app.relaunch_after_quit();
+        self.keep_sessions = true;
     }
 
     pub fn install_update(&mut self) -> Option<tokio::sync::oneshot::Receiver<Result<(), String>>> {

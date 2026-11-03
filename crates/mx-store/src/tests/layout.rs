@@ -48,7 +48,7 @@ fn l5_layout_entry_of_a_resumable_claude_tab() {
     rig.tm(&id).session_id = Some("abc-123".into());
     assert_eq!(
         rig.t(&id).to_json(),
-        json!({"folderRoot":"/repo","kind":"claude","cwd":"/repo/.claude/worktrees/TASK-47730","label":"TASK#47730","sessionId":"abc-123"})
+        json!({"folderRoot":"/repo","kind":"claude","cwd":"/repo/.claude/worktrees/TASK-47730","label":"TASK#47730","sessionId":"abc-123","tabId":"w"})
     );
 }
 

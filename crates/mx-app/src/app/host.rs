@@ -9,12 +9,37 @@ use tokio::runtime::Runtime;
 
 use crate::app::ports::{Hooks, SysNotifier};
 use mx_term::TermRegistry;
+use mx_term::ptyd::{self, Info, Ptyd};
+
+const PTYD_ENV: &str = "MAESTRIA_PTYD";
+
+fn start_ptyd(state_dir: &std::path::Path) -> Option<(Ptyd, Info)> {
+    if std::env::var(PTYD_ENV).is_ok_and(|v| v.trim() == "0") {
+        return None;
+    }
+    let exe = std::env::current_exe().ok()?;
+    let log = state_dir.join("ptyd.log");
+    let started = Ptyd::ensure(ptyd::socket_in(state_dir), &exe, Some(&log)).and_then(|d| d.info().map(|i| (d, i)));
+    match started {
+        Ok((d, info)) if info.v == ptyd::PROTOCOL => Some((d, info)),
+        Ok((_, info)) => {
+            log::warn!("ptyd speaks protocol {}, this build {}; terminals run in-process", info.v, ptyd::PROTOCOL);
+            None
+        }
+        Err(err) => {
+            log::warn!("ptyd unavailable, terminals run in-process: {err}");
+            None
+        }
+    }
+}
 
 pub struct StoreChanged(pub Changes, pub Vec<Effect>);
 
 pub struct StoreHost {
     pub store: Store,
     pub terms: TermRegistry,
+    pub stale_ptyd: Option<usize>,
+    pub stop_ptyd_on_quit: bool,
     timer: Option<Task<()>>,
     armed: Option<Time>,
     rt: Arc<Runtime>,
@@ -44,6 +69,9 @@ impl StoreHost {
         let plugins = mx_plugins::Plugins::new(&state_dir);
         plugins.set_runtime(rt.handle().clone());
         let terms = TermRegistry::new(mx_theme::TerminalPalette::default());
+        let ptyd = start_ptyd(&state_dir);
+        let stale_ptyd = ptyd.as_ref().and_then(|(_, info)| (info.rev != ptyd::rev()).then_some(info.sessions));
+        terms.use_ptyd(ptyd.map(|(d, _)| d));
         let hooks = Arc::new(Hooks {
             home: opts.home.clone(),
             server,
@@ -79,6 +107,11 @@ impl StoreHost {
             }
         });
         store.load();
+        match terms.prune_ptyd() {
+            Ok(0) => {}
+            Ok(n) => log::info!("ptyd: ended {n} sessions no panel adopted"),
+            Err(err) => log::warn!("ptyd prune failed: {err}"),
+        }
         crate::keymap::hotkey::drop_taken_hotkeys(&mut store);
         store.attach_plugins(plugins);
         store.start();
@@ -102,6 +135,8 @@ impl StoreHost {
             let mut host = StoreHost {
                 store,
                 terms,
+                stale_ptyd,
+                stop_ptyd_on_quit: false,
                 timer: None,
                 armed: None,
                 rt,

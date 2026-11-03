@@ -340,6 +340,9 @@ impl Tab {
         if let Some(k) = &self.hotkey {
             m.insert("hotkey".into(), json!(k));
         }
+        if matches!(self.kind, TabKind::Shell | TabKind::Claude) && !self.exited && !self.hibernated {
+            m.insert("tabId".into(), json!(self.id));
+        }
         Value::Object(m)
     }
 }

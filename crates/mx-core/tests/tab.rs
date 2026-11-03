@@ -54,7 +54,7 @@ fn a_claude_tab_with_label_and_session_serializes_exactly() {
     t.session_id = Some("abc-123".into());
     assert_eq!(
         serde_json::to_string(&t.to_json()).unwrap(),
-        r#"{"folderRoot":"/repo","kind":"claude","cwd":"/repo/.claude/worktrees/TASK-47730","label":"TASK#47730","sessionId":"abc-123"}"#
+        r#"{"folderRoot":"/repo","kind":"claude","cwd":"/repo/.claude/worktrees/TASK-47730","label":"TASK#47730","sessionId":"abc-123","tabId":"t1"}"#
     );
 }
 
@@ -224,4 +224,16 @@ fn docs_without_a_path_for_files_are_dropped() {
         json!({"root": "/repo", "selected": "CLAUDE.md"})
     );
     let _: Value = s.to_json();
+}
+
+#[test]
+fn only_a_live_terminal_tab_remembers_its_id_for_the_daemon() {
+    let mut t = Tab::new("t9", &repo(), TabKind::Shell, "/repo", now());
+    assert_eq!(t.to_json().get("tabId"), Some(&serde_json::json!("t9")));
+    t.exited = true;
+    assert!(t.to_json().get("tabId").is_none());
+    let mut c = Tab::new("t8", &repo(), TabKind::Claude, "/repo", now());
+    c.hibernated = true;
+    assert!(c.to_json().get("tabId").is_none());
+    assert!(Tab::new("r", &repo(), TabKind::Reader, "/repo", now()).to_json().get("tabId").is_none());
 }

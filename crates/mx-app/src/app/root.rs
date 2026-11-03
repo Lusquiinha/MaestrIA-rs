@@ -162,6 +162,7 @@ impl Root {
         let Outcome::Ui(request) = keymap::on_key_down(&self.host, ev, window, cx) else { return };
         match request {
             UiRequest::Settings => settings::open(Section::Appearance, window, cx),
+            UiRequest::Restart { all } => crate::app::restart::request(all, cx),
             UiRequest::FocusSearch => {
                 update_store(&self.host, cx, |s| s.set_sidebar_hidden(false));
                 let sidebar = self.sidebar.clone();

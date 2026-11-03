@@ -13,6 +13,7 @@ pub mod menus;
 pub mod notices;
 pub mod panel_actions;
 pub mod ports;
+pub mod restart;
 pub mod root;
 pub mod settings;
 pub mod theme;
@@ -41,11 +42,20 @@ pub fn open_main_window(cx: &mut App) -> anyhow::Result<()> {
     let quitting = host.clone();
     cx.on_app_quit(move |cx| {
         quitting.update(cx, |h, _| {
+            if h.terms.ptyd().is_some() && !h.store.prefs().end_sessions_on_quit {
+                h.store.keep_sessions_on_quit();
+            }
             let rt = h.rt();
             let done = h.store.shutdown();
             rt.block_on(async move {
                 let _ = tokio::time::timeout(QUIT_GRACE, done).await;
             });
+            if h.stop_ptyd_on_quit
+                && let Some(d) = h.terms.ptyd()
+                && let Err(err) = d.shutdown()
+            {
+                log::warn!("could not stop ptyd: {err}");
+            }
             h.store.on_quit();
         });
         std::future::ready(())
@@ -61,7 +71,11 @@ pub fn open_main_window(cx: &mut App) -> anyhow::Result<()> {
         app_id: Some(app_id()),
         ..Default::default()
     };
+    let stale = host.read(cx).stale_ptyd;
     cx.open_window(options, |window, cx| cx.new(|cx| Root::new(host, window, cx)))?;
+    if let Some(sessions) = stale {
+        restart::confirm(restart::Kind::StaleDaemon { sessions }, cx);
+    }
     Ok(())
 }
 

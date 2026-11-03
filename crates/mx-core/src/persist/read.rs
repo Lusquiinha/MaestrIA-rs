@@ -159,6 +159,7 @@ impl Config {
         c.sidebar_view = get_str(j, "sidebarView").lenient().map(str::to_owned);
         c.do_not_disturb = bool_or(j, "doNotDisturb", &mut skipped);
         c.suggestions_to_plugin = bool_or(j, "suggestionsToPlugin", &mut skipped);
+        c.end_sessions_on_quit = bool_or(j, "endSessionsOnQuit", &mut skipped);
         c.floats = j
             .get("floats")
             .and_then(Value::as_object)

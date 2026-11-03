@@ -25,6 +25,7 @@ pub struct Focus {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UiRequest {
     Settings,
+    Restart { all: bool },
     Rename { tab_id: String, title: String },
     NewTask { folder: String },
     FocusSearch,
@@ -164,6 +165,8 @@ pub fn run_action(store: &mut Store, a: Action) -> Option<UiRequest> {
         Action::ZoomReset => store.reset_zoom_focused(),
         Action::Sidebar => store.toggle_sidebar(),
         Action::Settings => return Some(UiRequest::Settings),
+        Action::Restart => return Some(UiRequest::Restart { all: false }),
+        Action::RestartAll => return Some(UiRequest::Restart { all: true }),
     }
     None
 }

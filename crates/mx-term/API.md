@@ -56,6 +56,19 @@ leftovers (full PTY buffer) are flushed by the I/O thread.
   `StoreMsg::TermExited{tab_id, code}` from here (stale lives never reach it).
 - `create(tab_id)` / `create_session(tab_id)`, `get(tab_id) -> Option<TerminalSession>` (weak; dropped
   sessions disappear and are hung up), `set_palette(p)` (all live sessions).
+- `use_ptyd(Option<Ptyd>)`: new sessions run in the daemon under their tab id (in-process if it refuses).
+  `adopt(tab_id)` / `adopt_session` reattach a live daemon session (screen comes back replayed);
+  `prune_ptyd()` ends daemon sessions no tab adopted. `keep_alive()` on a remote session: dropping it detaches
+  instead of hanging up.
+
+## ptyd — `mx_term::ptyd`
+Daemon that owns the ptys so the app can restart without ending sessions. Same binary, `maestria --ptyd <socket>`
+(`run` = setsid + `serve`); socket `<state>/ptyd.sock` (0600, same uid only), log `<state>/ptyd.log`, exits after
+60 s with no sessions and no clients. Wire: `[kind u8][len u32 LE][payload]`, JSON control
+(`S`pawn/`A`ttach → `O` ready | `E`rror, `R`esize, `?` info, `P`rune, `Q` shutdown) and raw bytes (`I`nput, `D`ata);
+`X` exit. The daemon mirrors each pty into an alacritty `Term`; attach sends a replay (scrollback, screen, SGR,
+OSC 8, cursor, modes, kitty keyboard flags; alt screen without the primary underneath). `PROTOCOL` gates the
+wire; `rev()` hashes the daemon sources, so the app can tell the running daemon is from another build.
 
 ## Snapshot
 `Snapshot{cols, rows, cells, cursor, foreground, background, mode, display_offset}`, `row(r) -> &[SnapCell]`;

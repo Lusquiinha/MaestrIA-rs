@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, Weak};
 use mx_core::ports::{BoxFuture, Term, TermFactory};
 use mx_theme::TerminalPalette;
 
+use crate::ptyd::Ptyd;
 use crate::session::{Shared, TerminalSession};
 
 impl Term for TerminalSession {
@@ -34,6 +35,10 @@ impl Term for TerminalSession {
         self.hang_up_now();
     }
 
+    fn keep_alive(&mut self) {
+        TerminalSession::keep_alive(self);
+    }
+
     fn relaunch(&mut self, command: &str, cwd: &str) {
         self.relaunch_now(command, cwd);
     }
@@ -61,6 +66,7 @@ struct Registry {
     sessions: HashMap<String, Weak<Shared>>,
     palette: TerminalPalette,
     on_exit: Option<TabExitHook>,
+    ptyd: Option<Arc<Ptyd>>,
 }
 
 #[derive(Clone)]
@@ -75,6 +81,7 @@ impl TermRegistry {
                 sessions: HashMap::new(),
                 palette,
                 on_exit: None,
+                ptyd: None,
             })),
         }
     }
@@ -105,13 +112,44 @@ impl TermRegistry {
         r.palette = palette;
     }
 
+    pub fn use_ptyd(&self, ptyd: Option<Ptyd>) {
+        if let Ok(mut r) = self.inner.lock() {
+            r.ptyd = ptyd.map(Arc::new);
+        }
+    }
+
+    pub fn ptyd(&self) -> Option<Arc<Ptyd>> {
+        self.inner.lock().ok().and_then(|r| r.ptyd.clone())
+    }
+
+    pub fn prune_ptyd(&self) -> std::io::Result<usize> {
+        let Some(ptyd) = self.ptyd() else { return Ok(0) };
+        let keep: Vec<String> = match self.inner.lock() {
+            Ok(r) => r.sessions.iter().filter(|(_, w)| w.strong_count() > 0).map(|(k, _)| k.clone()).collect(),
+            Err(_) => return Ok(0),
+        };
+        ptyd.sweep_finished(&keep);
+        ptyd.prune(keep)
+    }
+
+    pub fn adopt_session(&self, tab_id: &str) -> Option<TerminalSession> {
+        let ptyd = self.ptyd()?;
+        let session = self.create_session(tab_id);
+        if session.reattach() {
+            return Some(session);
+        }
+        session.restore_finished(ptyd.take_finished(tab_id)?);
+        Some(session)
+    }
+
     pub fn create_session(&self, tab_id: &str) -> TerminalSession {
-        let (palette, hook) = match self.inner.lock() {
-            Ok(r) => (r.palette.clone(), r.on_exit.clone()),
-            Err(_) => (TerminalPalette::default(), None),
+        let (palette, hook, ptyd) = match self.inner.lock() {
+            Ok(r) => (r.palette.clone(), r.on_exit.clone(), r.ptyd.clone()),
+            Err(_) => (TerminalPalette::default(), None, None),
         };
         let session = TerminalSession::with_palette(palette);
         session.set_tab_id(tab_id);
+        session.set_ptyd(ptyd);
         if let Some(hook) = hook {
             let id = tab_id.to_owned();
             session.set_exit_hook(Arc::new(move |code| hook(&id, code)));
@@ -127,5 +165,9 @@ impl TermRegistry {
 impl TermFactory for TermRegistry {
     fn create(&self, tab_id: &str) -> Box<dyn Term> {
         Box::new(self.create_session(tab_id))
+    }
+
+    fn adopt(&self, tab_id: &str) -> Option<Box<dyn Term>> {
+        self.adopt_session(tab_id).map(|s| Box::new(s) as Box<dyn Term>)
     }
 }

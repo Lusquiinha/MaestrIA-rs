@@ -6,6 +6,7 @@ mod groups;
 mod hibernate;
 mod history;
 mod layout;
+mod adopt;
 mod notices;
 mod pin;
 mod plugin_live;
