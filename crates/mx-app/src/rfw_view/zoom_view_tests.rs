@@ -252,3 +252,53 @@ fn drag_after_grab_pans() {
     assert!((st.matrix.x - before.x - 10.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
     assert!((st.matrix.y - before.y - 5.0).abs() < 1e-9, "{:?} vs {before:?}", st.matrix);
 }
+
+#[test]
+fn zoom_extra_has_fit() {
+    use mx_rfw::widgets::zoom_view::{BoxFit, fitted_scale};
+    let slot = Rc::new(std::cell::RefCell::new(super::FitState::default()));
+    slot.borrow_mut().natural = Some((280.0, 140.0));
+    let bounds = Bounds::new(point(px(0.), px(0.)), size(px(560.), px(400.)));
+    let st = super::ZoomState { bounds: Some(bounds), content: Some((slot, BoxFit::Contain, (0.0, 0.0))), ..Default::default() };
+    let expected = fitted_scale(BoxFit::Contain, (280.0, 140.0), (560.0, 400.0));
+    assert!(expected > 0.0);
+    assert_eq!(st.fit_scale(), expected);
+    let extra = mx_rfw::widgets::zoom_view::zoom_extra(1.5, st.fit_scale());
+    assert_eq!(extra.get("fit"), Some(&mx_rfw::Value::Double(expected)));
+    assert_eq!(super::ZoomState::default().fit_scale(), 1.0);
+}
+
+#[gpui::test]
+fn on_zoom_fires_after_first_layout_and_resize(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    let seen: Rc<RefCell<Vec<serde_json::Map<String, serde_json::Value>>>> = Rc::default();
+    let sink_seen = seen.clone();
+    let plan = r#"ZoomView(maxScale: 6.0, onZoom: event "z" {}, child: FittedBox(fit: "contain",
+  child: SizedBox(width: 280.0, height: 140.0, child: Center(child: Text(text: "planta")))))"#;
+    let library = format!("import core.widgets;\nimport maestria;\nwidget root = {plan};");
+    let (_view, vcx) = cx.add_window_view(move |_, _| {
+        let sink = Rc::new(move |a: crate::rfw_view::ViewAction, _: &mut gpui::Window, _: &mut gpui::App| {
+            sink_seen.borrow_mut().push(a.values);
+        });
+        let mut v = RfwView::new(default_theme().clone(), &Typography::standard(), None, sink);
+        v.set_library(&library);
+        v.set_root("root");
+        v
+    });
+    vcx.simulate_resize(size(px(560.0), px(400.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let first = seen.borrow().clone();
+    assert_eq!(first.len(), 1, "{first:?}");
+    assert_eq!(first[0].get("scale").and_then(|v| v.as_f64()), Some(1.0));
+    assert!(first[0].get("fit").and_then(|v| v.as_f64()).is_some_and(|f| f > 0.0), "{first:?}");
+    vcx.simulate_resize(size(px(300.0), px(300.0)));
+    vcx.run_until_parked();
+    vcx.executor().advance_clock(std::time::Duration::from_millis(400));
+    vcx.run_until_parked();
+    let all = seen.borrow().clone();
+    assert_eq!(all.len(), 2, "{all:?}");
+    let fits: Vec<f64> = all.iter().filter_map(|v| v.get("fit").and_then(|f| f.as_f64())).collect();
+    assert!(fits[0] != fits[1], "{fits:?}");
+}

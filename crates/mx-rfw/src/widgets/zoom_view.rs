@@ -56,16 +56,17 @@ fn focus_rect(v: &Value) -> Option<(f64, f64, f64, f64)> {
     Some((number(v.get("x"))?, number(v.get("y"))?, number(v.get("w"))?, number(v.get("h"))?))
 }
 
-pub fn move_extra(m: Transform) -> Map {
+pub fn move_extra(m: Transform, fit: f64) -> Map {
     Map::from_iter([
+        ("fit".to_owned(), Value::Double(fit)),
         ("scale".to_owned(), Value::Double(m.scale)),
         ("x".to_owned(), Value::Double(m.x)),
         ("y".to_owned(), Value::Double(m.y)),
     ])
 }
 
-pub fn zoom_extra(scale: f64) -> Map {
-    Map::from_iter([("scale".to_owned(), Value::Double(scale))])
+pub fn zoom_extra(scale: f64, fit: f64) -> Map {
+    Map::from_iter([("scale".to_owned(), Value::Double(scale)), ("fit".to_owned(), Value::Double(fit))])
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

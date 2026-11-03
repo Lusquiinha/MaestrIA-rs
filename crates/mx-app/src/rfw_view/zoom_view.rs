@@ -54,6 +54,7 @@ pub struct ZoomState {
     focus: Option<FocusHandle>,
     blur: Option<Subscription>,
     moved: bool,
+    force_report: bool,
     content: Option<(FitSlot, BoxFit, (f64, f64))>,
 }
 
@@ -71,6 +72,7 @@ impl Default for ZoomState {
             focus: None,
             blur: None,
             moved: false,
+            force_report: false,
             content: None,
         }
     }
@@ -121,6 +123,13 @@ impl ZoomState {
         Some(fitted_placement(*fit, *align, (f64::from(natural.0), f64::from(natural.1)), self.size()))
     }
 
+    pub fn fit_scale(&self) -> f64 {
+        let Some((slot, fit, _)) = self.content.as_ref() else { return 1.0 };
+        let Some(natural) = slot.borrow().natural else { return 1.0 };
+        let s = fitted_scale(*fit, (f64::from(natural.0), f64::from(natural.1)), self.size());
+        if s > 0.0 { s } else { 1.0 }
+    }
+
     pub fn current(&mut self, now: Instant) -> Transform {
         if let Some((start, from, to)) = self.anim {
             let t = now.duration_since(start).as_secs_f64() / Duration::from_millis(ANIMATION_MS).as_secs_f64();
@@ -168,7 +177,7 @@ impl ZoomState {
 
     pub fn settled(&mut self) -> Option<f64> {
         let s = self.matrix.scale;
-        if !should_report(s, self.reported) {
+        if !std::mem::take(&mut self.force_report) && !should_report(s, self.reported) {
             return None;
         }
         self.reported = s;
@@ -197,16 +206,16 @@ impl Reporter {
         let (events, move_events) = (self.events.clone(), self.move_events.clone());
         let task = cx.spawn(async move |cx| {
             cx.background_executor().timer(Duration::from_millis(SETTLE_MS)).await;
-            let (scale, moved) = {
+            let (scale, moved, fit) = {
                 let mut st = slot.borrow_mut();
-                (st.settled(), st.settled_move())
+                (st.settled(), st.settled_move(), st.fit_scale())
             };
             cx.update_window(window, |_, window, cx| {
                 if let Some(scale) = scale.filter(|_| !events.is_empty()) {
-                    fire(&sink, &events, &zoom_extra(scale), window, cx);
+                    fire(&sink, &events, &zoom_extra(scale, fit), window, cx);
                 }
                 if let Some(m) = moved.filter(|_| !move_events.is_empty()) {
-                    fire(&sink, &move_events, &move_extra(m), window, cx);
+                    fire(&sink, &move_events, &move_extra(m, fit), window, cx);
                 }
             })
             .ok();
@@ -274,12 +283,16 @@ pub fn render(cx: &mut Ctx, z: &ZoomView, fit: Fit) -> El {
             let mut st = probe_slot.borrow_mut();
             let resized = st.bounds.map(|b| b.size) != Some(bounds.size);
             st.bounds = Some(bounds);
+            st.force_report |= resized;
             let animating = st.animating();
             drop(st);
             if animating {
                 window.request_animation_frame();
+            }
+            if animating || resized {
                 probe_reporter.changed(window.window_handle(), cx);
-            } else if resized {
+            }
+            if resized && !animating {
                 refresh_after_draw(window, cx);
             }
         },
