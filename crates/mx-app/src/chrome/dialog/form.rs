@@ -21,6 +21,7 @@ pub struct FieldSpec {
     pub mono: bool,
     pub row: Option<u8>,
     pub note: Option<SharedString>,
+    pub selected: bool,
 }
 
 impl FieldSpec {
@@ -30,6 +31,11 @@ impl FieldSpec {
 
     pub fn initial(mut self, text: impl Into<String>) -> Self {
         self.initial = text.into();
+        self
+    }
+
+    pub fn selected(mut self) -> Self {
+        self.selected = true;
         self
     }
 
@@ -124,6 +130,9 @@ impl FormDialog {
                     }
                     if f.mono {
                         tf = tf.mono();
+                    }
+                    if f.selected {
+                        tf = tf.all_selected();
                     }
                     tf
                 });
