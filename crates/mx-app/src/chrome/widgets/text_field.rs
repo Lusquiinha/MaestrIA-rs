@@ -96,6 +96,11 @@ impl TextField {
         self
     }
 
+    pub fn all_selected(mut self) -> Self {
+        self.all_selected = !self.text.is_empty();
+        self
+    }
+
     pub fn text(&self) -> &str {
         &self.text
     }

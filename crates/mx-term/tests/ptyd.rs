@@ -90,7 +90,7 @@ fn prune_sweeps_screens_no_panel_claimed() {
     let d = daemon(dir.path());
     let first = registry(&d);
     let mut term = first.create("gone");
-    term.start_command("true", "/", None);
+    term.start_command("sh -c 'sleep 0.3'", "/", None);
     term.keep_alive();
     drop((term, first));
     let file = dir.path().join("ptyd-screens").join("gone.json");
@@ -148,7 +148,7 @@ fn prune_ends_the_sessions_nobody_adopted() {
     let second = registry(&d);
     let kept = second.adopt_session("kept").unwrap();
     assert_eq!(second.prune_ptyd().unwrap(), 1);
-    assert!(until(Duration::from_secs(5), || d.info().unwrap().sessions == 1));
+    assert!(until(Duration::from_secs(8), || d.info().unwrap().sessions == 1));
     assert!(!kept.is_exited());
 }
 

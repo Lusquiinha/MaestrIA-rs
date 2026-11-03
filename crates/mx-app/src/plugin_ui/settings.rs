@@ -261,7 +261,7 @@ impl SettingsDialog {
 
     fn row(&self, s: &PluginSetting, value: &Value, cx: &mut Context<Self>) -> AnyElement {
         let t = theme(cx);
-        let mut col = div().flex().flex_col().gap(px(4.)).py(px(8.));
+        let mut col = div().w_full().flex().flex_col().gap(px(4.)).py(px(8.));
         let inline = matches!(s.kind, SettingType::Boolean | SettingType::Folders);
         col = if inline {
             col.child(

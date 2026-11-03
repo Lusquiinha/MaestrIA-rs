@@ -124,6 +124,14 @@ mod tests {
     }
 
     #[gpui::test]
+    fn a_field_opened_selected_is_replaced_by_the_first_keystroke(cx: &mut TestAppContext) {
+        let field = cx.new(|cx| TextField::new(cx).with_text("nome antigo").all_selected());
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        field.update_in(cx, |f, window, cx| f.replace_text_in_range(None, "n", window, cx));
+        assert_eq!(field.read_with(cx, |f, _| f.text().to_owned()), "n");
+    }
+
+    #[gpui::test]
     fn select_all_then_typing_replaces_everything(cx: &mut TestAppContext) {
         let field = cx.new(|cx| TextField::new(cx).with_text("velho"));
         let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);

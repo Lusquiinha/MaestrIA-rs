@@ -211,12 +211,21 @@ impl Daemon {
     fn prune(&self, keep: &[String]) -> usize {
         let mut map = lock(&self.sessions);
         map.retain(|key, s| keep.contains(key) || s.alive());
-        let orphans: Vec<u32> = map.values().filter(|s| !keep.contains(&s.key)).map(|s| s.pid).collect();
+        let orphans: Vec<Arc<Session>> = map.values().filter(|s| !keep.contains(&s.key)).cloned().collect();
         drop(map);
-        for pid in &orphans {
-            signals::hang_up(*pid);
+        for s in &orphans {
+            signals::hang_up(s.pid);
         }
-        orphans.len()
+        let ended = orphans.len();
+        if ended > 0 {
+            std::thread::spawn(move || {
+                std::thread::sleep(signals::GRACE);
+                for s in orphans.iter().filter(|s| s.alive()) {
+                    signals::force_kill(s.pid);
+                }
+            });
+        }
+        ended
     }
 
     fn hang_up_all(&self) {
@@ -299,8 +308,15 @@ fn bind(socket: &Path) -> io::Result<UnixListener> {
     Ok(listener)
 }
 
+#[cfg(target_os = "linux")]
 fn same_user(stream: &UnixStream) -> bool {
     rustix::net::sockopt::socket_peercred(stream).is_ok_and(|c| c.uid == rustix::process::getuid())
+}
+
+// macOS has no SO_PEERCRED; there the 0600 socket file is what keeps other users out.
+#[cfg(not(target_os = "linux"))]
+fn same_user(_: &UnixStream) -> bool {
+    true
 }
 
 fn handle(daemon: &Arc<Daemon>, stream: UnixStream, stop: &AtomicBool) -> io::Result<()> {

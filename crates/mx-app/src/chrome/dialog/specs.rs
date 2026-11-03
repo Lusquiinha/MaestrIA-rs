@@ -16,7 +16,7 @@ fn actions(primary: &str) -> Vec<ActionSpec> {
 pub fn prompt_text(title: &str, label: &str, initial: &str) -> FormSpec {
     FormSpec {
         title: title.to_owned().into(),
-        fields: vec![FieldSpec::new(label.to_owned(), "").initial(initial)],
+        fields: vec![FieldSpec::new(label.to_owned(), "").initial(initial).selected()],
         actions: actions("Ok"),
         submit: 1,
         ..Default::default()

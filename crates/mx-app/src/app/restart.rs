@@ -79,7 +79,7 @@ impl Render for RestartConfirm {
                 .gap(px(10.))
                 .py(px(4.))
                 .child(icon(*glyph, 16., hsla(t.fg_dim)))
-                .child(div().flex_1().text_size(px(13.)).text_color(hsla(t.fg)).child(text.clone()))
+                .child(div().flex_1().min_w_0().text_size(px(13.)).text_color(hsla(t.fg)).child(text.clone()))
         }));
         let actions = vec![
             Button::new("restart-later", "Depois", ButtonKind::Text)
