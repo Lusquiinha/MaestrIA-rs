@@ -152,6 +152,7 @@ pub struct Config {
     pub sidebar_view: Option<String>,
     pub do_not_disturb: bool,
     pub suggestions_to_plugin: bool,
+    pub end_sessions_on_quit: bool,
     pub floats: Obj,
     pub groups_collapsed: bool,
     pub active_tray: bool,
@@ -181,6 +182,7 @@ impl Default for Config {
             sidebar_view: None,
             do_not_disturb: false,
             suggestions_to_plugin: false,
+            end_sessions_on_quit: false,
             floats: Obj::new(),
             groups_collapsed: false,
             active_tray: false,
@@ -250,6 +252,7 @@ impl Config {
         }
         flag(&mut m, "doNotDisturb", self.do_not_disturb);
         flag(&mut m, "suggestionsToPlugin", self.suggestions_to_plugin);
+        flag(&mut m, "endSessionsOnQuit", self.end_sessions_on_quit);
         if !self.floats.is_empty() {
             m.insert("floats".into(), Value::Object(self.floats.clone()));
         }

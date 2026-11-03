@@ -194,6 +194,7 @@ pub struct SettingsData {
     pub plugins: Vec<PluginRow>,
     pub plugin_auto: PluginAuto,
     pub hibernate_minutes: u32,
+    pub keep_on_quit: bool,
     pub app_updates: AppUpdates,
     pub account: Account,
 }
@@ -232,6 +233,7 @@ pub enum SettingsAction {
     SetPluginEnabled(String, bool),
     LoadDevPlugin,
     SetHibernateMinutes(u32),
+    SetKeepOnQuit(bool),
     SetAutoUpdate(bool),
     ReloadUsage,
     Close,

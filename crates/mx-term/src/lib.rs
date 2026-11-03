@@ -10,6 +10,7 @@ mod links;
 mod mouse;
 mod paste;
 mod port;
+pub mod ptyd;
 mod scrubber;
 mod session;
 mod signals;

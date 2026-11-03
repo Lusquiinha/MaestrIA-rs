@@ -294,7 +294,7 @@ fn shortcut_rows_follow_enum_order_and_flag_changes() {
     let mut m = Keymap::defaults(true);
     m.bind(Action::Refresh, chord("f5"), None);
     let rows = shortcut_rows(&m);
-    assert_eq!(rows.len(), 21);
+    assert_eq!(rows.len(), 23);
     assert_eq!(rows[0].action, "claude");
     let refresh = rows.iter().find(|r| r.action == "refresh").unwrap();
     assert!(refresh.changed);

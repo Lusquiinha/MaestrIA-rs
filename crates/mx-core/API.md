@@ -62,6 +62,7 @@ Pure crate (std + serde_json/chrono/regex). No tokio, processes or UI. Times are
 
 ## ports (object-safe, no runtime)
 `BoxFuture`, `CommandRunner::run(command, cwd) -> BoxFuture<CommandOutput>` (`ok`, `spawn_failure`), `Clock::now` (+`SystemClock`),
-`Term` (start_shell/start_command/park/remark/kill/hang_up/relaunch/submit/pid/exited/exit_code), `TermFactory::create(tab_id)`,
+`Term` (start_shell/start_command/park/remark/kill/hang_up/keep_alive/relaunch/submit/pid/exited/exit_code),
+`TermFactory::create(tab_id)` / `adopt(tab_id)` (a session that outlived the app; default `None`),
 `Notifier` (alert/badge/open_link/quick_look/reveal/choose_markdown), `PluginBus::emit(event, data, activations, permission)`,
 `HookServer` (port/mcp_config_for/settings_for).

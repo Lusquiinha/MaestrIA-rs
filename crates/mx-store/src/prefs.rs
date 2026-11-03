@@ -18,6 +18,7 @@ pub struct Prefs {
     pub sidebar_view: Option<String>,
     pub do_not_disturb: bool,
     pub suggestions_to_plugin: bool,
+    pub end_sessions_on_quit: bool,
     pub groups_collapsed: bool,
     pub active_tray: bool,
     pub active_tray_collapsed: bool,
@@ -39,6 +40,7 @@ impl Default for Prefs {
             sidebar_view: None,
             do_not_disturb: false,
             suggestions_to_plugin: false,
+            end_sessions_on_quit: false,
             groups_collapsed: false,
             active_tray: false,
             active_tray_collapsed: false,
@@ -128,6 +130,10 @@ impl Store {
     pub fn toggle_do_not_disturb(&mut self) {
         let on = !self.prefs.do_not_disturb;
         self.set_do_not_disturb(on);
+    }
+
+    pub fn set_end_sessions_on_quit(&mut self, on: bool) {
+        self.set_pref(on, |p| &mut p.end_sessions_on_quit);
     }
 
     pub fn set_suggestions_to_plugin(&mut self, on: bool) {

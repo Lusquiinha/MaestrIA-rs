@@ -55,6 +55,8 @@ pub struct Store {
     pub(crate) run: String,
     pub(crate) restoring: bool,
     pub(crate) quitting: bool,
+    pub(crate) keep_sessions: bool,
+    pub(crate) adopting: Option<(String, Box<dyn Term>)>,
     pub(crate) gone: bool,
     pub(crate) timers: Timers,
     pub(crate) changes: Changes,
@@ -102,6 +104,8 @@ impl Store {
             run: ids::run_stamp(micros),
             restoring: false,
             quitting: false,
+            keep_sessions: false,
+            adopting: None,
             gone: false,
             timers: Timers::default(),
             changes: Changes::default(),
@@ -116,6 +120,15 @@ impl Store {
 
     pub(crate) fn now(&self) -> Time {
         self.p.clock.now()
+    }
+
+    pub(crate) fn new_term(&mut self) -> (String, Box<dyn Term>, bool) {
+        if let Some((id, term)) = self.adopting.take() {
+            return (id, term, true);
+        }
+        let id = self.next_tab_id();
+        let term = self.p.terms.create(&id);
+        (id, term, false)
     }
 
     pub(crate) fn next_tab_id(&mut self) -> String {

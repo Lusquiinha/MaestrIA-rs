@@ -122,15 +122,24 @@ impl Store {
     }
 
     pub fn shutdown(&mut self) -> impl Future<Output = ()> + Send + 'static {
+        if self.keep_sessions {
+            self.timers.cancel(&TimerKey::Save);
+            self.write_config();
+        } else {
+            self.flush();
+        }
         self.quitting = true;
-        self.flush();
         self.timers.clear();
         let mut kills = Vec::new();
         for tab in &mut self.tabs {
             tab.armed = false;
         }
         for term in self.terms.values_mut() {
-            kills.push(self.p.rt.spawn(term.kill()));
+            if self.keep_sessions {
+                term.keep_alive();
+            } else {
+                kills.push(self.p.rt.spawn(term.kill()));
+            }
         }
         if let Some(plugins) = self.plugin.registry.clone() {
             kills.push(self.p.rt.spawn(async move { plugins.stop_all().await }));
@@ -140,6 +149,10 @@ impl Store {
                 let _ = k.await;
             }
         }
+    }
+
+    pub fn keep_sessions_on_quit(&mut self) {
+        self.keep_sessions = true;
     }
 
     pub fn dispose(&mut self) {

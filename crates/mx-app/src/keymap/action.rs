@@ -23,6 +23,8 @@ pub enum Action {
     ZoomReset,
     Sidebar,
     Settings,
+    Restart,
+    RestartAll,
 }
 
 struct Info {
@@ -41,7 +43,7 @@ const N: &str = "Navegação";
 const E: &str = "Exibição";
 const J: &str = "Janela";
 
-const INFO: [Info; 21] = [
+const INFO: [Info; 23] = [
     info("claude", "Nova sessão Claude", Some("Na pasta e na feature/hotfix do painel em foco"), S),
     info("shell", "Novo shell", Some("Um terminal comum, no mesmo lugar"), S),
     info("task", "Nova task", Some("Abre a worktree e sobe uma sessão nela"), S),
@@ -83,10 +85,17 @@ const INFO: [Info; 21] = [
         E,
     ),
     info("settings", "Configurações", Some("Esta tela"), J),
+    info("restart", "Reiniciar o app", Some("As sessões continuam rodando e voltam nos mesmos painéis"), J),
+    info(
+        "restart-all",
+        "Reiniciar tudo",
+        Some("Inclusive o processo dos terminais: as sessões são encerradas e o Claude volta com --resume"),
+        J,
+    ),
 ];
 
 impl Action {
-    pub const ALL: [Action; 21] = [
+    pub const ALL: [Action; 23] = [
         Action::Claude,
         Action::Shell,
         Action::Task,
@@ -108,6 +117,8 @@ impl Action {
         Action::ZoomReset,
         Action::Sidebar,
         Action::Settings,
+        Action::Restart,
+        Action::RestartAll,
     ];
 
     pub fn index(self) -> usize {
@@ -194,6 +205,8 @@ fn mac_defaults(a: Action) -> Vec<Chord> {
         Action::ZoomReset => vec![cmd(c('0'))],
         Action::Sidebar => vec![alt_cmd(c('s'))],
         Action::Settings => vec![cmd(c(',')), shift_cmd(c('p'))],
+        Action::Restart => vec![alt_cmd(c('r'))],
+        Action::RestartAll => vec![ch(c('r'), false, true, true, true)],
     }
 }
 
@@ -220,5 +233,7 @@ fn linux_defaults(a: Action) -> Vec<Chord> {
         Action::ZoomReset => vec![ctrl(c('0'))],
         Action::Sidebar => vec![ctrl_shift(c('b'))],
         Action::Settings => vec![ctrl(c(',')), ctrl_shift(c('p'))],
+        Action::Restart => vec![ch(c('r'), true, false, true, false)],
+        Action::RestartAll => vec![ch(c('r'), true, true, true, false)],
     }
 }

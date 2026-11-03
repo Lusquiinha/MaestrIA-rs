@@ -137,6 +137,7 @@ pub fn data(host: &Entity<StoreHost>, cx: &App) -> SettingsData {
         plugins: store.plugins().map(|p| p.all().iter().map(|i| plugin_row(i, crate::plugin_ui::conflicts(store, &i.id), store)).collect()).unwrap_or_default(),
         plugin_auto: plugin_auto(store),
         hibernate_minutes: prefs.hibernate_minutes.max(0) as u32,
+        keep_on_quit: !prefs.end_sessions_on_quit,
         app_updates: app_updates(store),
         account: cx.try_global::<Usage>().map_or(Account::Loading, |u| u.0.clone()),
     }
@@ -241,6 +242,7 @@ fn act(action: SettingsAction, window: &mut Window, cx: &mut App) {
         S::RemoveLauncher(id) => ui::act(cx, |s| s.remove_launcher(&id)),
         S::SetPluginEnabled(id, on) => ui::act(cx, |s| s.set_plugin_enabled(&id, on)),
         S::SetHibernateMinutes(m) => ui::act(cx, |s| s.set_hibernate_minutes(m as i64)),
+        S::SetKeepOnQuit(keep) => ui::act(cx, |s| s.set_end_sessions_on_quit(!keep)),
         S::SetAutoUpdate(on) => ui::act(cx, |s| s.set_auto_update(on)),
         S::ReloadUsage => {
             refresh(cx);

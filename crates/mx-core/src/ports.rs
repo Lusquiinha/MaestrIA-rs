@@ -104,6 +104,7 @@ pub trait Term: TermInput + Send {
     fn remark(&mut self, text: &str);
     fn kill(&mut self) -> BoxFuture<'static, ()>;
     fn hang_up(&mut self);
+    fn keep_alive(&mut self) {}
     fn relaunch(&mut self, command: &str, cwd: &str);
     fn submit(&mut self, text: &str);
     fn pid(&self) -> Option<u32>;
@@ -113,6 +114,9 @@ pub trait Term: TermInput + Send {
 
 pub trait TermFactory: Send + Sync {
     fn create(&self, tab_id: &str) -> Box<dyn Term>;
+    fn adopt(&self, _tab_id: &str) -> Option<Box<dyn Term>> {
+        None
+    }
 }
 
 pub trait Notifier: Send + Sync {

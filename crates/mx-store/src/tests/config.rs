@@ -168,7 +168,7 @@ async fn restore_parks_hibernated_sessions_and_runs_the_rest() {
     assert!(rig.terms.log(&a).commands.is_empty());
     assert!(!rig.t(&b).hibernated);
     assert_eq!(rig.terms.log(&b).commands.len(), 1);
-    assert!(!rig.s.save_pending());
+    assert!(rig.s.save_pending());
 }
 
 #[tokio::test]
