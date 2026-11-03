@@ -14,13 +14,14 @@ REVISION    := $(shell sed -n '/^\[package.metadata.deb\]/,/^\[/s/^revision *= *
 VERSION     := $(RAW_VERSION)-$(or $(REVISION),1)
 DEB         := $(DIST)/maestria-rs_$(VERSION)_amd64.deb
 
-.PHONY: help deb deb-only deb-test dmg release publish analyze clippy test bench bump clean tag version
+.PHONY: help deb deb-only deb-fast deb-test dmg release publish analyze clippy test bench bump clean tag version
 
 help:
 	@echo "maestria $(VERSION)"
 	@echo
 	@echo "  make deb        clippy e gera o .deb em $(DIST)/"
 	@echo "  make deb-only   gera o .deb sem o clippy antes"
+	@echo "  make deb-fast   .deb de teste nesta máquina, sem LTO: maior, mas sai em segundos (REV=2 muda a revisão)"
 	@echo "  make deb-test   instala o .deb numa ubuntu:22.04 limpa e abre o app"
 	@echo "  make dmg        gera o .dmg universal do Mac em $(MAC_DIST)/ (só no macOS)"
 	@echo "  make release    clippy, testes, .deb e smoke test -- o caminho completo"
@@ -54,6 +55,9 @@ deb: clippy deb-only
 
 deb-only:
 	@./packaging/linux/build-deb.sh --variant rs
+
+deb-fast:
+	@NATIVE=1 ./packaging/linux/build-deb.sh --variant rs --profile deb-fast $(if $(REV),--deb-revision $(REV))
 
 deb-test:
 	@./packaging/linux/smoke-test.sh

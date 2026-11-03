@@ -61,3 +61,9 @@ opt-level = 3
 lto = "fat"
 codegen-units = 1
 panic = "abort"
+
+[profile.deb-fast]
+inherits = "release"
+lto = false
+codegen-units = 256
+incremental = true
