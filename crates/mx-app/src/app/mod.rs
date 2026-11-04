@@ -20,6 +20,7 @@ pub mod theme;
 pub mod tooltip;
 pub mod ui;
 pub mod update_confirm;
+pub mod window_frame;
 
 use std::borrow::Cow;
 

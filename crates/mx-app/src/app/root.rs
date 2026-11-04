@@ -10,6 +10,7 @@ use std::rc::Rc;
 use crate::app::host::{StoreChanged, StoreHost, update_store};
 use crate::app::theme::{GAP, Mx};
 use crate::app::ui::{self, Ui};
+use crate::app::window_frame;
 use crate::app::{dialogs, settings};
 use crate::chrome::settings::Section;
 use crate::keymap::{self, Outcome, UiRequest};
@@ -243,9 +244,21 @@ impl Render for Root {
             .cached(StyleRefinement::default().w(px(rail::WIDTH + GAP)).h_full().flex_none());
         let sidebar = AnyView::from(self.sidebar.clone())
             .cached(StyleRefinement::default().w(px(width)).h_full().flex_none());
+        let frame = window_frame::client_tiling(window);
         let status = AnyView::from(self.status_bar.clone()).cached(
-            StyleRefinement::default().w_full().h(px(status_bar::HEIGHT)).flex_none(),
+            StyleRefinement::default().flex_1().min_w_0().h(px(status_bar::HEIGHT)),
         );
+        let status = div()
+            .w_full()
+            .h(px(status_bar::HEIGHT))
+            .flex_none()
+            .flex()
+            .items_center()
+            .child(status)
+            .when(frame.is_some() && top, |d| {
+                d.child(window_frame::controls(window, &mx).pt(px(3.)).pr(px(8.)))
+            });
+        let (status_top, status_bottom) = if top { (Some(status), None) } else { (None, Some(status)) };
         let host = self.host.clone();
         let (panes_view, sidebar_view) = (self.panes.clone(), (!hidden).then(|| self.sidebar.entity_id()));
         let owners = move |cx: &App| {
@@ -293,7 +306,8 @@ impl Render for Root {
                 let w = fit_sidebar(x, f32::from(window.viewport_size().width));
                 update_store(&host, cx, |s| s.set_sidebar_width(w as f64));
             })
-            .when(top, |d| d.child(status.clone()))
+            .when(frame.is_some() && !top, |d| d.child(window_frame::strip(window, &mx)))
+            .children(status_top)
             .child(
                 div()
                     .flex_1()
@@ -307,11 +321,12 @@ impl Render for Root {
                         d.child(view).child(slots::layer(move |_| vec![id]))
                     }),
             )
-            .when(!top, |d| d.child(status))
+            .children(status_bottom)
             .children(layers.into_iter().map(|v| div().absolute().inset_0().child(v)))
             .child(confetti)
             .child(tip_gate::watch_clicks())
             .child(div().id("root-focus").track_focus(&self.focus).absolute().size_0())
+            .children(frame.map(|t| window_frame::resize_handles(window, t)).unwrap_or_default())
     }
 }
 
