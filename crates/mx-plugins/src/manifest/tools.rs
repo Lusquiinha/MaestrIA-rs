@@ -32,7 +32,8 @@ pub(super) fn parse(raw: Option<&Value>, plugin_id: &str, has_main: bool) -> Res
     if !list.is_empty() && !has_main {
         return Err(err("\"contributes.tools\" precisa de \"main\": quem responde a ferramenta é o processo"));
     }
-    let prefix = format!("{}_", plugin_id.rsplit('.').next().unwrap_or(plugin_id));
+    // Nome de ferramenta não aceita hífen: `maestria.vm-manager` → `vm_manager_`.
+    let prefix = format!("{}_", plugin_id.rsplit('.').next().unwrap_or(plugin_id).replace('-', "_"));
     let mut tools: Vec<PluginTool> = Vec::new();
     for item in list {
         let Value::Object(m) = item else { return Err(err(SHAPE)) };
