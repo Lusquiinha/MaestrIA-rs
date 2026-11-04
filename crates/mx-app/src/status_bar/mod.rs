@@ -12,6 +12,7 @@ use crate::app::host::{StoreHost, update_store};
 use crate::app::icons::{Icon, icon};
 use crate::app::theme::{GAP, Mx};
 use crate::app::tooltip::tip;
+use crate::app::window_frame;
 
 pub use sessions::SessionsView;
 
@@ -85,7 +86,7 @@ impl StatusBar {
 }
 
 impl Render for StatusBar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mx = Mx::get(cx).clone();
         let store = &self.host.read(cx).store;
         let summary = Summary::of(store);
@@ -151,6 +152,12 @@ impl Render for StatusBar {
 
         let update = update_chip::chip(store, &mx);
         let (pt, pb) = if top { (3., 0.) } else { (0., 3.) };
+        let spacer = div().id("status-spacer").flex_1().h_full();
+        let spacer = if top && window_frame::client_tiling(window).is_some() {
+            window_frame::drag_area(spacer)
+        } else {
+            spacer
+        };
         div()
             .h(px(HEIGHT))
             .w_full()
@@ -162,7 +169,7 @@ impl Render for StatusBar {
             .pt(px(pt))
             .pb(px(pb))
             .child(sessions)
-            .child(div().flex_1())
+            .child(spacer)
             .children(update)
             .child(bell_el)
     }
