@@ -225,13 +225,6 @@ fn on_rt(cx: &App, f: impl std::future::Future<Output = ()> + Send + 'static) {
     ui::host(cx).read(cx).rt().spawn(f);
 }
 
-fn run_shell(cx: &App, command: String) {
-    on_rt(cx, async move {
-        let runner = mx_sys::LoginShell;
-        mx_core::ports::CommandRunner::run(&runner, command, None).await;
-    });
-}
-
 fn act(action: SettingsAction, window: &mut Window, cx: &mut App) {
     use SettingsAction as S;
     match action {
@@ -255,7 +248,10 @@ fn act(action: SettingsAction, window: &mut Window, cx: &mut App) {
         S::OpenPluginsFolder => {
             if let Some(p) = plugins(cx) {
                 std::fs::create_dir_all(p.root()).ok();
-                run_shell(cx, format!("xdg-open {}", mx_sys::shell::q(&p.root().to_string_lossy())));
+                let root = p.root().to_string_lossy().into_owned();
+                on_rt(cx, async move {
+                    mx_sys::reveal::open_link(&mx_sys::LoginShell, &root).await;
+                });
             }
         }
         S::RescanPlugins => {

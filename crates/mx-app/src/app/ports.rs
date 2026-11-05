@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use mx_core::ports::{BoxFuture, CommandRunner, HookServer, Notifier};
 use mx_sys::LoginShell;
-use mx_sys::shell::q;
 use tokio::runtime::Handle;
 
 pub struct SysNotifier {
@@ -16,13 +15,6 @@ impl SysNotifier {
             runner: Arc::new(LoginShell),
             rt,
         }
-    }
-
-    fn run(&self, command: String) {
-        let runner = self.runner.clone();
-        self.rt.spawn(async move {
-            runner.run(command, None).await;
-        });
     }
 }
 
@@ -42,7 +34,11 @@ impl Notifier for SysNotifier {
     fn badge(&self, _label: Option<&str>) {}
 
     fn open_link(&self, url: &str) {
-        self.run(format!("xdg-open {}", q(url)));
+        let runner = self.runner.clone();
+        let url = url.to_owned();
+        self.rt.spawn(async move {
+            mx_sys::reveal::open_link(runner.as_ref(), &url).await;
+        });
     }
 
     fn quick_look(&self, path: &str) {
