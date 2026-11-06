@@ -70,7 +70,8 @@ impl Ctx<'_> {
             return None;
         }
         let folders = self.store.folders_of(&w.id);
-        let needs: usize = folders.iter().map(|f| self.store.needing_human(&f.root)).sum();
+        let parent = self.store.root_folder_of(&w.id);
+        let needs: usize = self.store.members_of(&w.id).iter().map(|f| self.store.needing_human(&f.root)).sum();
         let collapsed = w.collapsed && !filtering;
         let color = w.tint.map(|t| mx.tint(t)).unwrap_or(mx.accent);
         let host = self.host.clone();
@@ -93,7 +94,7 @@ impl Ctx<'_> {
             .on_mouse_down(MouseButton::Right, right_click(Target::Workspace(w.id.clone())))
             .on_hover(self.track(key.clone()))
             .child(chevron(mx, collapsed, 20.))
-            .child(icon(Icon::Hexagon, 15., color))
+            .child(workspace_glyph(mx, color, parent.is_some()))
             .child(
                 div()
                     .flex_1()
@@ -105,6 +106,15 @@ impl Ctx<'_> {
                     .child(w.name.clone()),
             )
             .when(collapsed && needs > 0, |d| d.child(badge(mx, needs, None)))
+            .when_some(parent, |d, f| {
+                d.child(self.reveal(&key, row_button(
+                    mx,
+                    SharedString::from(format!("ws-add:{}", w.id)),
+                    Icon::Add,
+                    "Abrir aqui",
+                    menu_on(Target::Plus { root: f.root.clone(), feature: None }),
+                )))
+            })
             .child(self.reveal(&key, row_button(
                 mx,
                 SharedString::from(format!("ws-more:{}", w.id)),
@@ -114,11 +124,15 @@ impl Ctx<'_> {
             )));
         let mut col = div().flex().flex_col().child(header);
         if !collapsed {
-            let mut kids: Vec<AnyElement> = folders
-                .iter()
-                .filter_map(|f| self.folder(f, Some(w)))
-                .collect();
-            if folders.is_empty() {
+            let mut kids: Vec<AnyElement> = Vec::new();
+            if let Some(f) = parent {
+                let tabs = self.store.tabs_of(&f.root);
+                if !tabs.is_empty() || !self.store.features_of(&f.root).is_empty() {
+                    kids.extend(self.folder_body(f, &tabs, Some(&w.id)));
+                }
+            }
+            kids.extend(folders.iter().filter_map(|f| self.folder(f, Some(w))));
+            if folders.is_empty() && parent.is_none() {
                 kids.push(
                     div()
                         .px(px(12.))
@@ -374,6 +388,29 @@ impl Ctx<'_> {
         }
         Some(col.into_any_element())
     }
+}
+
+fn workspace_glyph(mx: &Mx, color: Hsla, holds_sessions: bool) -> impl IntoElement {
+    div()
+        .relative()
+        .flex_none()
+        .size(px(15.))
+        .child(icon(Icon::Hexagon, 15., color))
+        .when(holds_sessions, |d| {
+            d.child(
+                div()
+                    .absolute()
+                    .right(px(-4.))
+                    .bottom(px(-4.))
+                    .size(px(11.))
+                    .rounded_full()
+                    .bg(mx.bg_sidebar)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(icon(Icon::Folder, 8., color)),
+            )
+        })
 }
 
 fn ghost_chip(mx: &Mx, n: usize) -> impl IntoElement {

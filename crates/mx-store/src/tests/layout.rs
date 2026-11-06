@@ -92,3 +92,108 @@ async fn add_folder_that_does_not_exist_is_a_sticky_banner() {
     assert!(rig.s.folders().is_empty());
     assert_eq!(rig.s.banner(), Some("Pasta não encontrada: /nao/existe"));
 }
+
+fn repo(rig: &Rig, name: &str) -> String {
+    let p = rig.mkdir(name);
+    std::fs::create_dir_all(std::path::Path::new(&p).join(".git")).unwrap();
+    p
+}
+
+#[tokio::test]
+async fn a_folder_holding_repos_becomes_a_workspace_with_it_and_them() {
+    let mut rig = Rig::new();
+    let back = repo(&rig, "uplii/uplii_backend");
+    let front = repo(&rig, "uplii/uplii_frontend");
+    rig.mkdir("uplii/docs");
+    repo(&rig, "uplii/.cache");
+    let uplii = rig.mkdir("uplii");
+    rig.s.add_folder(&format!("{uplii}/"));
+    rig.s.settle().await;
+    let roots: Vec<&str> = rig.s.folders().iter().map(|f| f.root.as_str()).collect();
+    assert_eq!(roots, [uplii.as_str(), back.as_str(), front.as_str()]);
+    assert_eq!(rig.s.workspaces().len(), 1);
+    let w = &rig.s.workspaces()[0];
+    assert_eq!((w.name.as_str(), &w.folder_roots), ("uplii", &vec![back, front]));
+    assert_eq!((w.root.as_deref(), w.code_workspace_path.as_deref()), (Some(uplii.as_str()), None));
+    let ws = w.id.clone();
+    assert_eq!(rig.s.root_folder_of(&ws).map(|f| f.root.as_str()), Some(uplii.as_str()));
+    assert_eq!(rig.s.sidebar_rows(), [mx_core::model::sidebar::RowKey::Workspace(ws)]);
+    assert_eq!(rig.s.banner(), Some("Workspace \"uplii\": 2 pastas adicionadas"));
+}
+
+#[tokio::test]
+async fn adding_the_same_folder_of_repos_again_reuses_its_workspace() {
+    let mut rig = Rig::new();
+    repo(&rig, "uplii/api");
+    let uplii = rig.mkdir("uplii");
+    rig.s.add_folder(&uplii);
+    rig.s.settle().await;
+    repo(&rig, "uplii/web");
+    rig.s.add_folder(&uplii);
+    rig.s.settle().await;
+    assert_eq!(rig.s.workspaces().len(), 1);
+    assert_eq!(rig.s.workspaces()[0].folder_roots.len(), 2);
+    assert_eq!(rig.s.banner(), Some("Workspace \"uplii\": 1 pasta adicionada, 1 já estava aqui"));
+}
+
+#[tokio::test]
+async fn a_plain_folder_without_repos_inside_is_added_as_is() {
+    let mut rig = Rig::new();
+    let docs = rig.mkdir("uplii_backend/docs");
+    let made = rig.mkdir("uplii_backend");
+    rig.s.add_folder(&made);
+    rig.s.settle().await;
+    assert!(rig.s.find_folder(&made).is_some());
+    assert!(rig.s.find_folder(&docs).is_none());
+    assert!(rig.s.workspaces().is_empty());
+}
+
+#[tokio::test]
+async fn a_folder_that_is_a_repo_is_not_scanned() {
+    let mut rig = Rig::new();
+    let made = repo(&rig, "uplii_backend");
+    repo(&rig, "uplii_backend/vendor/lib");
+    rig.runner.respond("git worktree list", mx_sys::output(0, format!("worktree {made}\n"), ""));
+    rig.s.add_folder(&made);
+    rig.s.settle().await;
+    let roots: Vec<&str> = rig.s.folders().iter().map(|f| f.root.as_str()).collect();
+    assert_eq!(roots, [made.as_str()]);
+    assert!(rig.s.workspaces().is_empty());
+}
+
+async fn uplii(rig: &mut Rig) -> (String, String, String) {
+    let api = repo(rig, "uplii/api");
+    let parent = rig.mkdir("uplii");
+    rig.s.add_folder(&parent);
+    rig.s.settle().await;
+    let ws = rig.s.workspaces()[0].id.clone();
+    (parent, api, ws)
+}
+
+#[tokio::test]
+async fn closing_a_folder_workspace_takes_its_parent_folder_too() {
+    let mut rig = Rig::new();
+    let (parent, _, ws) = uplii(&mut rig).await;
+    assert_eq!(rig.s.closing_with(&ws).len(), 2);
+    rig.s.close_workspace(&ws);
+    assert!(rig.s.find_folder(&parent).is_none());
+    assert!(rig.s.folders().is_empty());
+}
+
+#[tokio::test]
+async fn dissolving_a_folder_workspace_frees_the_parent_first() {
+    let mut rig = Rig::new();
+    let (parent, api, ws) = uplii(&mut rig).await;
+    rig.s.dissolve_workspace(&ws);
+    use mx_core::model::sidebar::RowKey;
+    assert_eq!(rig.s.sidebar_rows(), [RowKey::Folder(parent), RowKey::Folder(api)]);
+}
+
+#[tokio::test]
+async fn removing_the_parent_folder_keeps_a_plain_workspace() {
+    let mut rig = Rig::new();
+    let (parent, api, ws) = uplii(&mut rig).await;
+    rig.s.remove_folder(&parent);
+    let w = rig.s.workspace_by_id(&ws).unwrap();
+    assert_eq!((w.root.as_deref(), &w.folder_roots), (None, &vec![api]));
+}

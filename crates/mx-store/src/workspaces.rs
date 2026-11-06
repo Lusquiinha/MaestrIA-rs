@@ -54,6 +54,15 @@ impl Store {
             .unwrap_or_default()
     }
 
+    pub fn root_folder_of(&self, ws: &str) -> Option<&Folder> {
+        let root = self.workspace_by_id(ws)?.root.as_deref()?;
+        self.find_folder(root)
+    }
+
+    pub fn members_of(&self, ws: &str) -> Vec<&Folder> {
+        self.root_folder_of(ws).into_iter().chain(self.folders_of(ws)).collect()
+    }
+
     pub fn workspaces_of(&self, root: &str) -> Vec<&Workspace> {
         sidebar::workspaces_of(root, &self.workspaces)
     }
@@ -94,7 +103,7 @@ impl Store {
     }
 
     pub fn add_to_workspace(&mut self, root: &str, ws: &str, before: Option<&str>) {
-        if self.workspace_by_id(ws).is_none_or(|w| w.has(root)) {
+        if self.workspace_by_id(ws).is_none_or(|w| w.owns(root)) {
             return;
         }
         self.pin_root_order();
@@ -163,8 +172,10 @@ impl Store {
         let slot = self.root_order.iter().position(|k| *k == key);
         self.root_order.retain(|k| *k != key);
         let w = self.workspaces.remove(at);
-        let freed: Vec<String> = sidebar::folders_of(&w, &self.folders)
+        let parent = w.root.as_deref().and_then(|r| self.folders.iter().find(|f| f.root == r));
+        let freed: Vec<String> = parent
             .into_iter()
+            .chain(sidebar::folders_of(&w, &self.folders))
             .filter(|f| self.stands_alone(&f.root))
             .map(|f| RowKey::Folder(f.root.clone()).key())
             .collect();
@@ -174,7 +185,7 @@ impl Store {
     }
 
     pub fn closing_with(&self, ws: &str) -> Vec<&Folder> {
-        self.folders_of(ws)
+        self.members_of(ws)
             .into_iter()
             .filter(|f| self.workspaces_of(&f.root).len() == 1)
             .collect()

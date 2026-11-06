@@ -89,6 +89,6 @@ impl Store {
     }
 
     pub fn has_hits_in_workspace(&self, ws: &str) -> bool {
-        self.folders_of(ws).iter().any(|f| self.has_hits(&f.root))
+        self.members_of(ws).iter().any(|f| self.has_hits(&f.root))
     }
 }

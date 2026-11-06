@@ -22,7 +22,7 @@ impl Store {
                 self.sidebar_rows()
                     .into_iter()
                     .find_map(|r| match r {
-                        RowKey::Workspace(w) => self.workspace_by_id(&w).filter(|w| w.has(&t.folder_root)),
+                        RowKey::Workspace(w) => self.workspace_by_id(&w).filter(|w| w.owns(&t.folder_root)),
                         RowKey::Folder(_) => None,
                     })
                     .and_then(|w| w.tint)

@@ -203,6 +203,19 @@ pub fn worktree_menu(launchers: &[LauncherRef], is_main: bool, ghost: bool) -> E
     out
 }
 
+pub fn rooted_workspace_menu(launchers: &[LauncherRef], has_file: bool, tint: Option<Tint>) -> Entries {
+    let mut out = open_here(launchers);
+    out.push(MenuEntry::Divider);
+    out.push(item("Configuração do Claude", A::Setup, icon::TUNE, Tone::Dim).into());
+    for kind in [FeatureOrHotfixKind::Feature, FeatureOrHotfixKind::Hotfix] {
+        out.push(item(format!("{}…", kind.new_label()), A::NewFeatureOrHotfix(kind), kind_icon(kind), Tone::Purple).into());
+    }
+    out.push(item("Limpar concluídos", A::CloseSettled, icon::CLEAR_ALL, Tone::Dim).into());
+    out.push(MenuEntry::Divider);
+    out.extend(workspace_menu(has_file, tint));
+    out
+}
+
 pub fn workspace_menu(has_file: bool, tint: Option<Tint>) -> Entries {
     let mut out: Entries = vec![
         item("Renomear…", A::Rename, icon::DRIVE_FILE_RENAME_OUTLINE, Tone::Dim).into(),

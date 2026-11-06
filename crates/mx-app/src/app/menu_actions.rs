@@ -44,6 +44,7 @@ pub fn open_here(place: &Place, action: &A, window: &mut Window, cx: &mut App) -
 fn place_of(store: &Store, target: &Target) -> Option<Place> {
     Some(match target {
         Target::Folder { root, .. } => Place::at(root),
+        Target::Workspace(id) => Place::at(&store.root_folder_of(id)?.root),
         Target::Plus { root, feature } => Place { feature: feature.clone(), ..Place::at(root) },
         Target::Feature(id) => {
             let f = store.feature_by_id(id)?;
@@ -169,6 +170,14 @@ fn workspace(id: &str, action: A, window: &mut Window, cx: &mut App) {
             s.show_banner(&format!("Workspace \"{}\" desfeito — as pastas continuam na lateral", w.name));
         }),
         A::CloseWorkspace => confirms::close_workspace(&id, cx),
+        A::Setup | A::NewFeatureOrHotfix(_) | A::CloseSettled => {
+            let Some(root) = ui::store(cx).root_folder_of(&id).map(|f| f.root.clone()) else { return };
+            match action {
+                A::Setup => drop(ui::act(cx, |s| s.show_setup(&root, None, None))),
+                A::NewFeatureOrHotfix(kind) => dialogs::new_feature(&root, kind, window, cx),
+                _ => drop(ui::act(cx, |s| s.close_settled(&root))),
+            }
+        }
         _ => {}
     }
 }

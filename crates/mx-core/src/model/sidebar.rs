@@ -31,11 +31,11 @@ pub fn folders_of<'a>(w: &Workspace, folders: &'a [Folder]) -> Vec<&'a Folder> {
 }
 
 pub fn workspaces_of<'a>(root: &str, workspaces: &'a [Workspace]) -> Vec<&'a Workspace> {
-    workspaces.iter().filter(|w| w.has(root)).collect()
+    workspaces.iter().filter(|w| w.owns(root)).collect()
 }
 
 pub fn stands_alone(root: &str, workspaces: &[Workspace]) -> bool {
-    !workspaces.iter().any(|w| w.has(root))
+    !workspaces.iter().any(|w| w.owns(root))
 }
 
 fn row_of(key: &str, folders: &[Folder], workspaces: &[Workspace]) -> Option<RowKey> {

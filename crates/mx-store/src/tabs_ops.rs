@@ -314,7 +314,7 @@ impl Store {
             sidebar_rows(&self.folders, &self.workspaces, &self.root_order)
                 .into_iter()
                 .find_map(|r| match r {
-                    RowKey::Workspace(w) if self.workspace_by_id(&w).is_some_and(|w| w.has(&root)) => Some(w),
+                    RowKey::Workspace(w) if self.workspace_by_id(&w).is_some_and(|w| w.owns(&root)) => Some(w),
                     _ => None,
                 })
         };
