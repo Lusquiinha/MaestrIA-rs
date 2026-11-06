@@ -22,6 +22,7 @@ pub struct Workspace {
     pub tint: Option<Tint>,
     pub code_workspace_path: Option<String>,
     pub root: Option<String>,
+    pub hide_folders: bool,
     pub folder_roots: Vec<String>,
     pub collapsed_folders: Vec<String>,
 }
@@ -35,6 +36,7 @@ impl Workspace {
             tint: None,
             code_workspace_path: None,
             root: None,
+            hide_folders: false,
             folder_roots: Vec::new(),
             collapsed_folders: Vec::new(),
         }
@@ -87,6 +89,9 @@ impl Workspace {
         if let Some(r) = &self.root {
             m.insert("root".into(), json!(r));
         }
+        if self.hide_folders {
+            m.insert("hideFolders".into(), json!(true));
+        }
         m.insert("folderRoots".into(), json!(self.folder_roots));
         if !self.collapsed_folders.is_empty() {
             m.insert("collapsedFolders".into(), json!(self.collapsed_folders));
@@ -123,6 +128,7 @@ impl Workspace {
             tint: Tint::by_name(get_str(m, "tint").typed()?),
             code_workspace_path,
             root: get_str(m, "root").typed()?.map(str::trim).filter(|r| !r.is_empty()).map(str::to_owned),
+            hide_folders: get_bool(m, "hideFolders").typed()?.unwrap_or(false),
             folder_roots: strings(m.get("folderRoots")),
             collapsed_folders,
         })

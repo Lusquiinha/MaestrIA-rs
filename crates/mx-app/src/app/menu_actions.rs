@@ -170,6 +170,7 @@ fn workspace(id: &str, action: A, window: &mut Window, cx: &mut App) {
             s.show_banner(&format!("Workspace \"{}\" desfeito — as pastas continuam na lateral", w.name));
         }),
         A::CloseWorkspace => confirms::close_workspace(&id, cx),
+        A::ToggleWorkspaceFolders => ui::act(cx, |s| s.toggle_workspace_folders(&id)),
         A::Setup | A::NewFeatureOrHotfix(_) | A::CloseSettled => {
             let Some(root) = ui::store(cx).root_folder_of(&id).map(|f| f.root.clone()) else { return };
             match action {

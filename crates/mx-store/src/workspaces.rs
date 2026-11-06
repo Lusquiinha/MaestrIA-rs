@@ -218,6 +218,15 @@ impl Store {
         self.changed();
     }
 
+    pub fn toggle_workspace_folders(&mut self, ws: &str) {
+        let Some(w) = self.ws_mut(ws) else { return };
+        if w.root.is_none() {
+            return;
+        }
+        w.hide_folders = !w.hide_folders;
+        self.changed();
+    }
+
     pub fn is_folder_collapsed(&self, root: &str, within: Option<&str>) -> bool {
         match within {
             None => self.find_folder(root).is_some_and(|f| f.collapsed),

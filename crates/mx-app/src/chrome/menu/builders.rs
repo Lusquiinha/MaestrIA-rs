@@ -203,7 +203,7 @@ pub fn worktree_menu(launchers: &[LauncherRef], is_main: bool, ghost: bool) -> E
     out
 }
 
-pub fn rooted_workspace_menu(launchers: &[LauncherRef], has_file: bool, tint: Option<Tint>) -> Entries {
+pub fn rooted_workspace_menu(launchers: &[LauncherRef], hides_folders: bool, has_file: bool, tint: Option<Tint>) -> Entries {
     let mut out = open_here(launchers);
     out.push(MenuEntry::Divider);
     out.push(item("Configuração do Claude", A::Setup, icon::TUNE, Tone::Dim).into());
@@ -212,6 +212,11 @@ pub fn rooted_workspace_menu(launchers: &[LauncherRef], has_file: bool, tint: Op
     }
     out.push(item("Limpar concluídos", A::CloseSettled, icon::CLEAR_ALL, Tone::Dim).into());
     out.push(MenuEntry::Divider);
+    out.push(if hides_folders {
+        item("Mostrar pastas", A::ToggleWorkspaceFolders, icon::FOLDER_OPEN, Tone::Dim).into()
+    } else {
+        item("Esconder pastas", A::ToggleWorkspaceFolders, icon::FOLDER_OUTLINED, Tone::Dim).into()
+    });
     out.extend(workspace_menu(has_file, tint));
     out
 }

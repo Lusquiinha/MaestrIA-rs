@@ -320,6 +320,9 @@ impl Store {
         };
         if let Some(w) = within.as_deref().and_then(|w| self.workspaces.iter_mut().find(|x| x.id == w)) {
             w.collapsed = false;
+            if w.has(&root) {
+                w.hide_folders = false;
+            }
             w.set_folder_collapsed(&root, false);
         } else if !loose && let Some(f) = self.folder_mut(&root) {
             f.collapsed = false;
