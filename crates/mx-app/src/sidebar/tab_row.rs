@@ -210,6 +210,7 @@ impl TabRow {
             id: self.id.clone(),
             title: self.title.clone(),
             folder_root: self.folder_root.clone(),
+            from_tray: in_tray,
         };
         let host_drop = host.clone();
         let target = self.id.clone();
@@ -217,7 +218,8 @@ impl TabRow {
         let accent = mx.accent;
         let row_key = if in_tray { format!("tray-tab:{}", self.id) } else { format!("tab:{}", self.id) };
         let row = div()
-            .id(SharedString::from(row_key))
+            .id(SharedString::from(row_key.clone()))
+            .debug_selector(|| row_key)
             .group("tab-row")
             .relative()
             .mx(px(7.))
@@ -249,25 +251,25 @@ impl TabRow {
                     Some(g) => s.open_group(g),
                     None => s.select(&id),
                 })
-            });
-        let row = if in_tray {
-            row
-        } else {
-            row.on_drag(drag, |d: &DraggedTab, at, _, cx| {
+            })
+            .on_drag(drag, |d: &DraggedTab, at, _, cx| {
                 cx.new(|_| TabGhost {
                     title: d.title.clone(),
                     at,
                 })
-            })
-            .drag_over::<DraggedTab>(move |s, d, _, _| {
-                if d.folder_root == root {
+            });
+        let row = if in_tray {
+            row
+        } else {
+            row.drag_over::<DraggedTab>(move |s, d, _, _| {
+                if d.folder_root == root && !d.from_tray {
                     s.border_t(px(2.5)).border_color(accent)
                 } else {
                     s
                 }
             })
             .on_drop(move |d: &DraggedTab, _, cx: &mut App| {
-                if d.id != target {
+                if d.id != target && !d.from_tray {
                     update_store(&host_drop, cx, |s| s.move_tab(&d.id, &target));
                 }
             })
@@ -313,3 +315,7 @@ fn scroll_into_view(handle: &ScrollHandle, row: Bounds<Pixels>, window: &mut gpu
         window.request_animation_frame();
     }
 }
+
+#[cfg(test)]
+#[path = "tab_row_tests.rs"]
+mod tests;

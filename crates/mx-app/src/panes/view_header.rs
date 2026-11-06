@@ -118,7 +118,7 @@ impl ViewHeader {
         }));
         let lead = plugin_glyph(self.icon.as_deref(), self.dir.as_deref(), 17., mx.fg_dim);
         let fade = if self.dim { 0.55 } else { 1. };
-        let drag = DraggedTab { id: self.id.clone(), title: self.title.clone(), folder_root: String::new() };
+        let drag = DraggedTab { id: self.id.clone(), title: self.title.clone(), folder_root: String::new(), from_tray: false };
         let subtitle = (width >= 190.).then(|| format!("Plugin · {}", self.plugin_name));
         let el = div()
             .id(SharedString::from(format!("view-header:{}", self.id)))

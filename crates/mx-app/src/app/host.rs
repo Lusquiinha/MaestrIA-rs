@@ -146,6 +146,19 @@ impl StoreHost {
         }))
     }
 
+    #[cfg(test)]
+    pub fn for_test(store: Store, rt: Arc<Runtime>, cx: &mut App) -> Entity<StoreHost> {
+        cx.new(|_| StoreHost {
+            store,
+            terms: TermRegistry::new(mx_theme::TerminalPalette::default()),
+            stale_ptyd: None,
+            stop_ptyd_on_quit: false,
+            timer: None,
+            armed: None,
+            rt,
+        })
+    }
+
     pub fn rt(&self) -> tokio::runtime::Handle {
         self.rt.handle().clone()
     }

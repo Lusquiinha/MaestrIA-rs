@@ -183,7 +183,7 @@ impl Card {
     fn render(self, mx: &Mx, host: &Entity<StoreHost>, width: f32) -> AnyElement {
         let (accent, hover, shadow) = (mx.accent, mx.bg_hover, mx.card_shadow(16., 6.));
         let (click_host, menu_id, click_id) = (host.clone(), self.id.clone(), self.id.clone());
-        let drag = DraggedTab { id: self.id.clone(), title: self.title.clone(), folder_root: self.folder_root.clone() };
+        let drag = DraggedTab { id: self.id.clone(), title: self.title.clone(), folder_root: self.folder_root.clone(), from_tray: false };
         let ghost = CardGhost { card: self.clone(), width };
         self.face(mx, width)
             .id(SharedString::from(format!("card:{}", self.id)))

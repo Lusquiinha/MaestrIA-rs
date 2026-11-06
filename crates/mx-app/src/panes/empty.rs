@@ -60,6 +60,7 @@ impl RenderOnce for EmptyPane {
         let accent = mx.accent;
         div()
             .id("empty-pane")
+            .debug_selector(|| "empty-pane".into())
             .relative()
             .size_full()
             .rounded(px(10.))

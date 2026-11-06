@@ -301,6 +301,7 @@ impl Ctx<'_> {
         let row = format!("feature:{}:{}", f.id, within.unwrap_or(""));
         let header = div()
             .id(SharedString::from(row.clone()))
+            .debug_selector(|| row.clone())
             .pl(px(10.))
             .pr(px(11.))
             .py(px(7.))
@@ -318,14 +319,16 @@ impl Ctx<'_> {
             .on_mouse_down(MouseButton::Right, right_click(Target::Feature(f.id.clone())))
             .on_hover(self.track(row.clone()))
             .drag_over::<crate::app::drag::DraggedTab>(move |s, d, _, _| {
-                if d.folder_root == root {
+                if d.folder_root == root && !d.from_tray {
                     s.bg(hover).border_color(accent)
                 } else {
                     s
                 }
             })
             .on_drop(move |d: &crate::app::drag::DraggedTab, _, cx: &mut App| {
-                update_store(&drop_host, cx, |s| s.assign(&d.id, Some(&drop_id)))
+                if !d.from_tray {
+                    update_store(&drop_host, cx, |s| s.assign(&d.id, Some(&drop_id)))
+                }
             })
             .child(chevron(mx, collapsed, 16.))
             .child(icon(glyph, 15., color))

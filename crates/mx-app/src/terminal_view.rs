@@ -125,8 +125,12 @@ impl TerminalView {
         &self.render
     }
 
+    pub fn shows_focus(&self, window: &Window) -> bool {
+        self.focus.is_focused(window) && window.is_window_active()
+    }
+
     pub fn painted_with_stale_focus(&self, window: &Window) -> bool {
-        self.render.borrow().painted_focused != self.focus.is_focused(window)
+        self.render.borrow().painted_focused != self.shows_focus(window)
     }
 
     pub fn set_claude(&mut self, claude: bool) {
@@ -263,7 +267,7 @@ impl Focusable for TerminalView {
 
 impl Render for TerminalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.render.borrow_mut().painted_focused = self.focus.is_focused(window);
+        self.render.borrow_mut().painted_focused = self.shows_focus(window);
         let terminal = div()
             .id("terminal")
             .key_context("Terminal")

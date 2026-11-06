@@ -85,3 +85,4 @@ short_description = "Cockpit para sessões do Claude Code"
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true

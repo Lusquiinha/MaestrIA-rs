@@ -1,9 +1,6 @@
-use std::sync::Arc;
-
 use mx_core::model::{ClaudeStatus, Folder, Tab, TabKind};
-use mx_store::testing::{FakeBus, FakeClock, FakeHooks, FakeNotifier, FakeTerms};
-use mx_store::{Ports, Store, StoreOptions};
-use mx_sys::FakeRunner;
+
+use crate::test_store::rig;
 
 use super::*;
 
@@ -111,44 +108,15 @@ fn tapping_the_tile_of_the_plugin_already_shown_never_hides_the_sidebar() {
     assert!(tile_opens(true, Some("git"), "git"));
 }
 
-struct Rig {
-    s: Store,
-    _rt: tokio::runtime::Runtime,
-    dir: std::path::PathBuf,
-}
-
-impl Drop for Rig {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.dir);
-    }
-}
-
-fn rig(name: &str) -> Rig {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-    let dir = std::env::temp_dir().join(format!("mx-cards-{name}-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let ports = Ports {
-        clock: Arc::new(FakeClock::new(chrono::Local::now())),
-        terms: Arc::new(FakeTerms::default()),
-        runner: Arc::new(FakeRunner::new()),
-        notifier: Arc::new(FakeNotifier::default()),
-        plugins: Arc::new(FakeBus::default()),
-        hooks: Arc::new(FakeHooks { port: 4242 }),
-        rt: rt.handle().clone(),
-    };
-    let opts = StoreOptions::at(dir.join("state"), dir.join("chats"), dir.to_str());
-    Rig { s: Store::new(opts, ports), _rt: rt, dir }
-}
-
 #[test]
 fn given_no_tabs_there_are_no_cards() {
-    let r = rig("none");
+    let r = rig();
     assert!(card_tabs(&r.s).is_empty());
 }
 
 #[test]
 fn tapping_a_shell_card_puts_it_back_on_screen() {
-    let mut r = rig("tap");
+    let mut r = rig();
     let id = r.s.open_shell(&Folder::new("/repo", "repo"), None, None, None, None);
     r.s.dismiss(&id);
     assert!(!r.s.is_open(&id));
