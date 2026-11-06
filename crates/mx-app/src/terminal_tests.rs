@@ -140,6 +140,25 @@ fn an_inactive_window_draws_streaming_output_half_as_often(cx: &mut TestAppConte
     assert!(frames_drawn_over_a_second(vcx, &view, &session) <= 11);
 }
 
+fn painted_focused(view: &Entity<TerminalView>, vcx: &mut VisualTestContext) -> bool {
+    view.read_with(vcx, |v, _| v.render.borrow().painted_focused)
+}
+
+#[gpui::test]
+fn an_inactive_window_paints_the_focused_terminal_unfocused_and_restores_it(cx: &mut TestAppContext) {
+    let session = TerminalSession::new(SIZE, TerminalPalette::default(), 100);
+    let (_host, view, vcx) = mount(cx, &session);
+    view.update_in(vcx, |v, window, _| window.focus(&v.focus));
+    vcx.run_until_parked();
+    assert!(painted_focused(&view, vcx));
+    vcx.deactivate_window();
+    assert!(!painted_focused(&view, vcx));
+    assert!(vcx.update(|window, cx| view.read(cx).focus.is_focused(window)));
+    vcx.update(|window, _| window.activate_window());
+    vcx.run_until_parked();
+    assert!(painted_focused(&view, vcx));
+}
+
 #[gpui::test]
 fn scrolled_rows_paint_the_text_now_on_them(cx: &mut TestAppContext) {
     let session = TerminalSession::new(SIZE, TerminalPalette::default(), 100);

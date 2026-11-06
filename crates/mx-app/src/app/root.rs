@@ -75,6 +75,7 @@ impl Root {
         cx.observe_window_activation(window, |this, window, cx| {
             let active = window.is_window_active();
             update_store(&this.host, cx, |s| s.set_window_active(active));
+            this.panes.update(cx, |_, cx| cx.notify());
             cx.notify();
         })
         .detach();

@@ -410,7 +410,7 @@ impl Render for PaneArea {
         let store = &self.host.read(cx).store;
         let tree = store.panes().cloned();
         let screen = store.screen().map(str::to_owned);
-        let show_focus = store.pane_count() > 1;
+        let show_focus = store.pane_count() > 1 && store.window_active();
         let ids = tree.as_ref().map(PaneNode::order).unwrap_or_default();
         self.sync_changes(window, cx);
         self.sync_headers(&ids, show_focus, &mx, window, cx);

@@ -364,7 +364,7 @@ impl Element for TerminalElement {
             return false;
         }
         let view = self.view.read(cx);
-        let focused = view.focus().is_focused(window);
+        let focused = view.shows_focus(window);
         let session = view.session().clone();
         let dirty = view.dirty.take();
         let marks = view.find_marks();
@@ -451,7 +451,7 @@ impl Element for TerminalElement {
         }
         let view = self.view.read(cx);
         let focus = view.focus().clone();
-        let focused = focus.is_focused(window);
+        let focused = view.shows_focus(window);
         let render = view.render().clone();
         let mut guard = render.borrow_mut();
         let st = &mut *guard;
