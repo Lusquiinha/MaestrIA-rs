@@ -197,3 +197,22 @@ async fn removing_the_parent_folder_keeps_a_plain_workspace() {
     let w = rig.s.workspace_by_id(&ws).unwrap();
     assert_eq!((w.root.as_deref(), &w.folder_roots), (None, &vec![api]));
 }
+
+#[tokio::test]
+async fn hiding_the_folders_of_a_folder_workspace_is_saved_and_a_reveal_undoes_it() {
+    let mut rig = Rig::new();
+    let (_, api, ws) = uplii(&mut rig).await;
+    rig.s.toggle_workspace_folders(&ws);
+    assert!(rig.s.workspace_by_id(&ws).unwrap().hide_folders);
+    rig.add_tab("t", &api, mx_core::model::TabKind::Shell, &api, None);
+    rig.s.reveal_tab("t");
+    assert!(!rig.s.workspace_by_id(&ws).unwrap().hide_folders);
+}
+
+#[tokio::test]
+async fn a_plain_workspace_has_no_folders_to_hide() {
+    let mut rig = Rig::new();
+    let ws = rig.s.create_workspace("cefis", &[], None).unwrap();
+    rig.s.toggle_workspace_folders(&ws);
+    assert!(!rig.s.workspace_by_id(&ws).unwrap().hide_folders);
+}

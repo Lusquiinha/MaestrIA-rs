@@ -71,8 +71,14 @@ impl Ctx<'_> {
         }
         let folders = self.store.folders_of(&w.id);
         let parent = self.store.root_folder_of(&w.id);
-        let needs: usize = self.store.members_of(&w.id).iter().map(|f| self.store.needing_human(&f.root)).sum();
         let collapsed = w.collapsed && !filtering;
+        let hide_folders = parent.is_some() && w.hide_folders && !filtering;
+        let unseen = match (collapsed, hide_folders) {
+            (true, _) => self.store.members_of(&w.id),
+            (false, true) => folders.clone(),
+            (false, false) => Vec::new(),
+        };
+        let needs: usize = unseen.iter().map(|f| self.store.needing_human(&f.root)).sum();
         let color = w.tint.map(|t| mx.tint(t)).unwrap_or(mx.accent);
         let host = self.host.clone();
         let ws_id = w.id.clone();
@@ -105,7 +111,7 @@ impl Ctx<'_> {
                     .text_color(mx.fg)
                     .child(w.name.clone()),
             )
-            .when(collapsed && needs > 0, |d| d.child(badge(mx, needs, None)))
+            .when(needs > 0, |d| d.child(badge(mx, needs, None)))
             .when_some(parent, |d, f| {
                 d.child(self.reveal(&key, row_button(
                     mx,
@@ -131,7 +137,9 @@ impl Ctx<'_> {
                     kids.extend(self.folder_body(f, &tabs, Some(&w.id)));
                 }
             }
-            kids.extend(folders.iter().filter_map(|f| self.folder(f, Some(w))));
+            if !hide_folders {
+                kids.extend(folders.iter().filter_map(|f| self.folder(f, Some(w))));
+            }
             if folders.is_empty() && parent.is_none() {
                 kids.push(
                     div()
@@ -144,7 +152,9 @@ impl Ctx<'_> {
                 );
             }
             let line = w.tint.map(|t| mx.tint(t)).unwrap_or(mx.border);
-            col = col.child(nest(20., line, kids));
+            if !kids.is_empty() {
+                col = col.child(nest(20., line, kids));
+            }
         }
         Some(col.into_any_element())
     }

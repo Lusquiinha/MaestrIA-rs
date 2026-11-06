@@ -32,6 +32,7 @@ pub enum MenuAction {
     LinkCodeWorkspace,
     UnlinkCodeWorkspace,
     DissolveWorkspace,
+    ToggleWorkspaceFolders,
     CloseWorkspace,
     NewTask,
     Brief,

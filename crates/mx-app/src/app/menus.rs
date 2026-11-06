@@ -186,7 +186,7 @@ pub fn entries(store: &Store, target: &Target) -> Vec<MenuEntry<MenuAction>> {
         Target::Workspace(id) => store
             .workspace_by_id(id)
             .map(|w| match store.root_folder_of(id) {
-                Some(_) => builders::rooted_workspace_menu(&ls, w.code_workspace_path.is_some(), theme_tint(w.tint)),
+                Some(_) => builders::rooted_workspace_menu(&ls, w.hide_folders, w.code_workspace_path.is_some(), theme_tint(w.tint)),
                 None => builders::workspace_menu(w.code_workspace_path.is_some(), theme_tint(w.tint)),
             })
             .unwrap_or_default(),

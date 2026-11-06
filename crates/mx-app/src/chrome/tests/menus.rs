@@ -119,7 +119,11 @@ fn workspace_menu_without_file_offers_link_and_with_file_offers_vscode_and_unlin
 
 #[test]
 fn a_workspace_with_a_root_folder_opens_sessions_first_then_its_own_items() {
-    let l = labels(&builders::rooted_workspace_menu(&[], false, None));
+    let l = labels(&builders::rooted_workspace_menu(&[], false, false, None));
+    assert!(pos(&l, "Limpar concluídos") < pos(&l, "Esconder pastas"));
+    assert!(pos(&l, "Esconder pastas") < pos(&l, "Renomear…"));
+    let hidden = labels(&builders::rooted_workspace_menu(&[], true, false, None));
+    pos(&hidden, "Mostrar pastas");
     assert!(pos(&l, "Sessão do Claude") < pos(&l, "Terminal"));
     assert!(pos(&l, "Terminal") < pos(&l, "Configuração do Claude"));
     assert!(pos(&l, "Limpar concluídos") < pos(&l, "Renomear…"));
