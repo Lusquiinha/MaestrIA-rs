@@ -211,6 +211,7 @@ impl Header {
             id: self.id.clone(),
             title: self.title.clone(),
             folder_root: self.folder_root.clone(),
+            from_tray: false,
         };
         let el = div()
             .id(SharedString::from(format!("pane-header:{}", self.id)))

@@ -12,6 +12,7 @@ pub struct DraggedTab {
     pub id: String,
     pub title: String,
     pub folder_root: String,
+    pub from_tray: bool,
 }
 
 pub struct TabGhost {
