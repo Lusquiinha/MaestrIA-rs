@@ -21,6 +21,7 @@ pub struct Workspace {
     pub collapsed: bool,
     pub tint: Option<Tint>,
     pub code_workspace_path: Option<String>,
+    pub root: Option<String>,
     pub folder_roots: Vec<String>,
     pub collapsed_folders: Vec<String>,
 }
@@ -33,6 +34,7 @@ impl Workspace {
             collapsed: false,
             tint: None,
             code_workspace_path: None,
+            root: None,
             folder_roots: Vec::new(),
             collapsed_folders: Vec::new(),
         }
@@ -40,6 +42,10 @@ impl Workspace {
 
     pub fn has(&self, root: &str) -> bool {
         self.folder_roots.iter().any(|r| r == root)
+    }
+
+    pub fn owns(&self, root: &str) -> bool {
+        self.root.as_deref() == Some(root) || self.has(root)
     }
 
     pub fn add_root(&mut self, root: &str) -> bool {
@@ -78,6 +84,9 @@ impl Workspace {
         if let Some(p) = &self.code_workspace_path {
             m.insert("codeWorkspacePath".into(), json!(p));
         }
+        if let Some(r) = &self.root {
+            m.insert("root".into(), json!(r));
+        }
         m.insert("folderRoots".into(), json!(self.folder_roots));
         if !self.collapsed_folders.is_empty() {
             m.insert("collapsedFolders".into(), json!(self.collapsed_folders));
@@ -113,6 +122,7 @@ impl Workspace {
             collapsed: get_bool(m, "collapsed").typed()?.unwrap_or(false),
             tint: Tint::by_name(get_str(m, "tint").typed()?),
             code_workspace_path,
+            root: get_str(m, "root").typed()?.map(str::trim).filter(|r| !r.is_empty()).map(str::to_owned),
             folder_roots: strings(m.get("folderRoots")),
             collapsed_folders,
         })

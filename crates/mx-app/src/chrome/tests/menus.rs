@@ -118,6 +118,17 @@ fn workspace_menu_without_file_offers_link_and_with_file_offers_vscode_and_unlin
 }
 
 #[test]
+fn a_workspace_with_a_root_folder_opens_sessions_first_then_its_own_items() {
+    let l = labels(&builders::rooted_workspace_menu(&[], false, None));
+    assert!(pos(&l, "Sessão do Claude") < pos(&l, "Terminal"));
+    assert!(pos(&l, "Terminal") < pos(&l, "Configuração do Claude"));
+    assert!(pos(&l, "Limpar concluídos") < pos(&l, "Renomear…"));
+    pos(&l, "Desfazer workspace");
+    pos(&l, "Fechar workspace…");
+    assert!(!l.contains(&"Remover pasta".to_owned()));
+}
+
+#[test]
 fn folder_menu_workspace_submenu_ticks_membership_and_offers_leave_inside_one() {
     let m = FolderMenu { workspaces: vec![("w".into(), "ATRIUM".into(), false)], within_workspace: true, ..Default::default() };
     let entries = builders::folder_menu(&m);

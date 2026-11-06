@@ -95,9 +95,12 @@ fn workspace_round_trip_and_omissions() {
     w.folder_roots = vec!["/a".into(), "/b".into()];
     w.collapsed_folders = vec!["/b".into()];
     w.tint = Some(Tint::Cyan);
+    assert_eq!(Workspace::from_json(&w.to_json()), Some(w.clone()));
+    w.root = Some("/repos/atrium".into());
     assert_eq!(Workspace::from_json(&w.to_json()), Some(w));
     let plain = Workspace::new("ws2", "uplii").to_json();
     assert!(plain.get("codeWorkspacePath").is_none());
+    assert!(plain.get("root").is_none());
     assert!(plain.get("collapsed").is_none());
     assert_eq!(Workspace::from_json(&json!({"id": "x"})), None);
     assert_eq!(Workspace::from_json(&json!("nada")), None);

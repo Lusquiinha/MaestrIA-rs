@@ -23,7 +23,8 @@ pub fn prompt_text(title: &str, label: &str, initial: &str) -> FormSpec {
     }
 }
 
-pub const ADD_FOLDER_NOTE: &str = "Um .code-workspace adiciona todas as pastas dele de uma vez.";
+pub const ADD_FOLDER_NOTE: &str =
+    "Um .code-workspace adiciona todas as pastas dele de uma vez. Uma pasta que não é repo mas tem repos dentro vira um workspace com eles, que também recebe sessões.";
 pub const ADD_FOLDER_TROUBLE: &str = "Não consegui abrir o seletor — cole aí em cima o caminho do .code-workspace";
 
 pub fn add_folder() -> FormSpec {
