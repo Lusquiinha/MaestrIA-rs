@@ -163,7 +163,7 @@ fn a_quiet_session_without_the_app_is_hibernated_and_comes_back_asleep() {
     chatty.start_command("sh -c 'while true; do echo .; sleep 0.2; done'", "/", None);
     quiet.keep_alive();
     chatty.keep_alive();
-    first.hibernate_when_idle(vec!["quiet".into(), "chatty".into()], Duration::from_secs(1)).unwrap();
+    first.hibernate_when_idle(vec!["quiet".into(), "chatty".into()], vec![], Duration::from_secs(1)).unwrap();
     drop((quiet, chatty, first));
     assert!(until(Duration::from_secs(8), || d.info().unwrap().sessions == 1));
 
@@ -213,12 +213,53 @@ fn reattaching_forgets_the_hibernation_set_at_the_last_quit() {
     let mut term = first.create("tab1");
     term.start_command("sleep 30", "/", None);
     term.keep_alive();
-    first.hibernate_when_idle(vec!["tab1".into()], Duration::from_secs(3)).unwrap();
+    first.hibernate_when_idle(vec!["tab1".into()], vec![], Duration::from_secs(3)).unwrap();
     drop((term, first));
     let second = registry(&d);
     let back = second.adopt_session("tab1").unwrap();
     back.keep_alive();
     drop((back, second));
     std::thread::sleep(Duration::from_secs(5));
+    assert_eq!(d.info().unwrap().sessions, 1);
+}
+
+fn shell_left_alone(dir: &Path, typed: &str) -> (Ptyd, TermRegistry) {
+    let d = daemon(dir);
+    let first = registry(&d);
+    let mut term = first.create("sh1");
+    term.start_command("sh", "/", None);
+    let session = first.get("sh1").unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    session.send(typed);
+    std::thread::sleep(Duration::from_millis(300));
+    term.keep_alive();
+    first.hibernate_when_idle(vec![], vec!["sh1".into()], Duration::from_secs(1)).unwrap();
+    drop((term, session, first));
+    (d.clone(), registry(&d))
+}
+
+#[test]
+fn a_shell_idle_at_its_prompt_is_hibernated_and_comes_back_asleep() {
+    let dir = tempfile::tempdir().unwrap();
+    let (d, second) = shell_left_alone(dir.path(), "echo marca-$((2*3))\r");
+    assert!(until(Duration::from_secs(8), || d.info().unwrap().sessions == 0));
+    let back = second.adopt_session("sh1").expect("the slept shell comes back");
+    assert!(back.is_exited() && back.slept_away());
+    assert!(screen(&back).contains("marca-6"));
+}
+
+#[test]
+fn a_shell_running_something_in_the_foreground_is_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (d, _) = shell_left_alone(dir.path(), "sleep 30\r");
+    std::thread::sleep(Duration::from_secs(4));
+    assert_eq!(d.info().unwrap().sessions, 1);
+}
+
+#[test]
+fn a_shell_with_a_background_job_is_left_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let (d, _) = shell_left_alone(dir.path(), "sleep 30 &\r");
+    std::thread::sleep(Duration::from_secs(4));
     assert_eq!(d.info().unwrap().sessions, 1);
 }

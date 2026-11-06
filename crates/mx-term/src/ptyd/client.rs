@@ -103,9 +103,9 @@ impl Ptyd {
         }
     }
 
-    pub fn hibernate_when_idle(&self, keys: Vec<String>, after: Duration) -> io::Result<()> {
+    pub fn hibernate_when_idle(&self, keys: Vec<String>, shells: Vec<String>, after: Duration) -> io::Result<()> {
         let stream = self.connect()?;
-        wire::write_json(&stream, wire::HIBERNATE, &Hibernate { after_secs: after.as_secs(), keys })?;
+        wire::write_json(&stream, wire::HIBERNATE, &Hibernate { after_secs: after.as_secs(), keys, shells })?;
         wire::read_frame(&stream).map(drop)
     }
 

@@ -39,7 +39,7 @@ mod tests;
 pub use changes::{Areas, Changes};
 pub use flows::{FLOW_PATIENCE, FLOW_QUIET, handoff_text, shell_label};
 pub use git_ops::{GitSnapshot, NewTask};
-pub use hibernate::HIBERNATED;
+pub use hibernate::{Away, HIBERNATED, SHELL_SLEPT};
 pub use lifecycle::AGENTS_COMMAND;
 pub use msg::{StoreMsg, StoreSender, TaskDone};
 pub use notices::{Bell, NoticeEntry};

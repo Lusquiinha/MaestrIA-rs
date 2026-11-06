@@ -122,8 +122,10 @@ fn quitting_hands_the_daemon_only_resumable_claudes_and_the_hibernation_time() {
     rig.add_tab("n", "/repo", mx_core::model::TabKind::Claude, "/repo", None);
     rig.shell("s");
     rig.s.set_hibernate_minutes(30);
-    let (ids, after) = rig.s.hibernatable_away().unwrap();
-    assert_eq!((ids, after.as_secs()), (vec!["c".to_owned()], 1800));
+    rig.add_tab("l", "/repo", mx_core::model::TabKind::Shell, "/repo", None);
+    rig.tm("l").launcher_id = Some("btop".into());
+    let away = rig.s.hibernatable_away().unwrap();
+    assert_eq!((away.claudes, away.shells, away.after.as_secs()), (vec!["c".to_owned()], vec!["s".to_owned()], 1800));
     rig.s.set_hibernate_minutes(0);
     assert!(rig.s.hibernatable_away().is_none());
 }
@@ -138,4 +140,16 @@ async fn keeping_sessions_still_ends_the_terminals_no_panel_brings_back() {
     rig.s.shutdown().await;
     assert!(rig.terms.log(&kept).kept);
     assert_eq!((rig.terms.log(&owned).kept, rig.terms.log(&owned).kills), (false, 1));
+}
+
+#[test]
+fn a_shell_hibernated_while_away_shows_its_screen_and_starts_a_fresh_shell_there() {
+    let mut rig = Rig::new();
+    rig.terms.hibernated_while_away("tabold_1");
+    let p = pane(&mut rig, "shell", "tabold_1");
+    let cwd = p["cwd"].as_str().unwrap().to_owned();
+    restore(&mut rig, vec![p]);
+    let log = rig.terms.log("tabold_1");
+    assert_eq!(log.remarks, [crate::SHELL_SLEPT]);
+    assert_eq!(log.shells, [cwd]);
 }
