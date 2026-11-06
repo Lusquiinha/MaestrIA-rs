@@ -50,6 +50,7 @@ pub struct PaneArea {
     bodies: bodies::Bodies,
     layer: Option<Entity<PluginLayer>>,
     watch: Option<Subscription>,
+    activation: Option<Subscription>,
     headers: HashMap<String, Entity<header_cache::PaneHeader>>,
     changes_open: HashSet<String>,
     changes: HashMap<String, Entity<changes::ChangesView>>,
@@ -70,6 +71,7 @@ impl PaneArea {
             bodies: bodies::Bodies::default(),
             layer: None,
             watch: None,
+            activation: None,
             headers: HashMap::new(),
             changes_open: HashSet::new(),
             changes: HashMap::new(),
@@ -123,10 +125,11 @@ impl PaneArea {
         }
     }
 
-    fn attach(&mut self, cx: &mut Context<Self>) {
+    fn attach(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.watch.is_some() {
             return;
         }
+        self.activation = Some(cx.observe_window_activation(window, |_, _, cx| cx.notify()));
         self.watch = Some(cx.subscribe(&self.host, |_, _, ev: &StoreChanged, cx| {
             if ev.0.areas.intersects(Areas::PLUGINS) {
                 cx.notify();
@@ -268,6 +271,7 @@ impl PaneArea {
         let (move_id, focus_id, drop_id) = (id.to_owned(), id.to_owned(), id.to_owned());
         div()
             .id(SharedString::from(format!("pane:{id}")))
+            .debug_selector(|| format!("pane:{id}"))
             .relative()
             .size_full()
             .flex()
@@ -372,7 +376,7 @@ impl PaneArea {
 impl Render for PaneArea {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::chrome::anim::slots::forget(cx.entity_id(), cx);
-        self.attach(cx);
+        self.attach(window, cx);
         let host = self.host.read(cx);
         let typo = host.store.prefs().typography.clone();
         let mut ids = host.store.order();
@@ -410,7 +414,7 @@ impl Render for PaneArea {
         let store = &self.host.read(cx).store;
         let tree = store.panes().cloned();
         let screen = store.screen().map(str::to_owned);
-        let show_focus = store.pane_count() > 1 && store.window_active();
+        let show_focus = store.pane_count() > 1 && window.is_window_active();
         let ids = tree.as_ref().map(PaneNode::order).unwrap_or_default();
         self.sync_changes(window, cx);
         self.sync_headers(&ids, show_focus, &mx, window, cx);
