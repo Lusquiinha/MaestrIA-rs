@@ -249,17 +249,17 @@ impl TabRow {
                     Some(g) => s.open_group(g),
                     None => s.select(&id),
                 })
-            });
-        let row = if in_tray {
-            row
-        } else {
-            row.on_drag(drag, |d: &DraggedTab, at, _, cx| {
+            })
+            .on_drag(drag, |d: &DraggedTab, at, _, cx| {
                 cx.new(|_| TabGhost {
                     title: d.title.clone(),
                     at,
                 })
-            })
-            .drag_over::<DraggedTab>(move |s, d, _, _| {
+            });
+        let row = if in_tray {
+            row
+        } else {
+            row.drag_over::<DraggedTab>(move |s, d, _, _| {
                 if d.folder_root == root {
                     s.border_t(px(2.5)).border_color(accent)
                 } else {
@@ -313,3 +313,7 @@ fn scroll_into_view(handle: &ScrollHandle, row: Bounds<Pixels>, window: &mut gpu
         window.request_animation_frame();
     }
 }
+
+#[cfg(test)]
+#[path = "tab_row_tests.rs"]
+mod tests;
