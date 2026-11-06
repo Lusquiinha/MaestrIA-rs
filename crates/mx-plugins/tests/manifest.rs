@@ -413,6 +413,20 @@ fn a_tool_name_starts_with_the_last_segment_of_the_plugin_id() {
 }
 
 #[test]
+fn a_hyphen_in_the_plugin_id_becomes_an_underscore_in_the_tool_prefix() {
+    let vmm = |tools: Value| {
+        json!({"id": "maestria.vm-manager", "version": "1", "main": ["node", "main.js"],
+            "contributes": {"tools": tools}})
+    };
+    let m = parse(vmm(json!([tool("vm_manager_list")]))).unwrap();
+    assert_eq!(m.tools[0].name, "vm_manager_list");
+    assert_eq!(
+        error_of(vmm(json!([tool("vm_list")]))),
+        "a ferramenta \"vm_list\" tem que começar com \"vm_manager_\""
+    );
+}
+
+#[test]
 fn bad_tools_are_refused_with_the_verbatim_message() {
     let bad_name = "nome de ferramenta inválido: \"Design_Open\" — minúsculas, dígitos e sublinhado, começando por letra, até 48 caracteres";
     assert_eq!(error_of(design(json!([tool("Design_Open")]))), bad_name);

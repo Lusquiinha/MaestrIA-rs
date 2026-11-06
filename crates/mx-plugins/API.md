@@ -15,7 +15,7 @@ de compatibilidade, ex. o mínimo do catálogo). `CAPABILITIES: [(chave, valor, 
   `full_id()`, `short_title(plugin_name)`. `CommandTarget { Plugin, Terminal, Background, Session }`.
 - `PluginSetting { id, title, kind: SettingType, description, default, options, group }`, `resolve(saved)`;
   `SettingType::Folders` = lista de `root`s (`[]` quando o salvo não é lista de textos).
-- `PluginTool { name, description, input_schema }` (`contributes.tools`, nome `<último segmento do id>_…`,
+- `PluginTool { name, description, input_schema }` (`contributes.tools`, nome `<último segmento do id, com - virando _>_…`,
   fora de `RESERVED_TOOLS = ["suggest_task", "dismiss_task"]`); `trust_facts` lista as ferramentas.
 - `Permission { Hooks, TerminalWrite, SessionsCreate, SessionsClose, Notifications }`: `id()`, `label()`, `by_id()`.
 

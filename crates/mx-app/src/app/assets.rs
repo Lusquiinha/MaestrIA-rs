@@ -7,6 +7,10 @@ const FILES: &[(&str, &[u8])] = &[
     ("icons/terminal.svg", include_bytes!("../../assets/icons/terminal.svg")),
     ("glyphs/open_with.svg", include_bytes!("../../assets/glyphs/open_with.svg")),
     ("glyphs/spin_arc.svg", include_bytes!("../../assets/glyphs/spin_arc.svg")),
+    ("glyphs/window_minimize.svg", include_bytes!("../../assets/glyphs/window_minimize.svg")),
+    ("glyphs/window_maximize.svg", include_bytes!("../../assets/glyphs/window_maximize.svg")),
+    ("glyphs/window_restore.svg", include_bytes!("../../assets/glyphs/window_restore.svg")),
+    ("glyphs/window_close.svg", include_bytes!("../../assets/glyphs/window_close.svg")),
 ];
 
 pub struct Assets;
