@@ -62,6 +62,7 @@ struct Mirror {
     quiet_since: Instant,
     hibernate_after: Option<Duration>,
     hibernating: bool,
+    idle_shell: bool,
 }
 
 impl Mirror {
@@ -86,6 +87,7 @@ impl Mirror {
         }
         self.hibernate_after = None;
         self.hibernating = false;
+        self.idle_shell = false;
     }
 
     fn ready(&self, pid: u32) -> Ready {
@@ -126,7 +128,8 @@ impl Session {
         let due = m.client.is_none()
             && !m.hibernating
             && m.exited.is_none()
-            && m.hibernate_after.is_some_and(|after| m.quiet_since.elapsed() >= after);
+            && m.hibernate_after.is_some_and(|after| m.quiet_since.elapsed() >= after)
+            && (!m.idle_shell || signals::idle_shell(&*lock(&self.pty), self.pid));
         if due {
             m.hibernating = true;
         }
@@ -333,9 +336,12 @@ fn handle(daemon: &Arc<Daemon>, stream: UnixStream, stop: &AtomicBool) -> io::Re
         wire::HIBERNATE => {
             let req: Hibernate = wire::parse(&payload)?;
             let after = (req.after_secs > 0).then(|| Duration::from_secs(req.after_secs));
-            for key in &req.keys {
+            let wanted = req.keys.iter().map(|k| (k, false)).chain(req.shells.iter().map(|k| (k, true)));
+            for (key, shell) in wanted {
                 if let Some(s) = lock(&daemon.sessions).get(key).cloned() {
-                    lock(&s.mirror).hibernate_after = after;
+                    let mut m = lock(&s.mirror);
+                    m.hibernate_after = after;
+                    m.idle_shell = shell;
                 }
             }
             return wire::write_frame(&stream, wire::HIBERNATE, b"");
@@ -419,6 +425,7 @@ fn spawn(daemon: &Arc<Daemon>, req: Spawn, client: Client) -> anyhow::Result<Arc
         quiet_since: Instant::now(),
         hibernate_after: None,
         hibernating: false,
+        idle_shell: false,
     };
     let session = Arc::new(Session {
         key: req.key.clone(),

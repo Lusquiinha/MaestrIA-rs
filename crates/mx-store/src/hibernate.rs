@@ -7,6 +7,15 @@ use crate::msg::Done;
 use crate::store::Store;
 use crate::timers::TimerKey;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Away {
+    pub claudes: Vec<String>,
+    pub shells: Vec<String>,
+    pub after: std::time::Duration,
+}
+
+pub const SHELL_SLEPT: &str = "Hibernado com o app fechado — um shell novo na mesma pasta";
+
 pub const HIBERNATED: &str =
     "Hibernada — processo desligado pra liberar memória; a conversa volta com um clique";
 
@@ -15,12 +24,16 @@ impl Store {
         self.prefs.hibernate_minutes > 0
     }
 
-    pub fn hibernatable_away(&self) -> Option<(Vec<String>, std::time::Duration)> {
+    pub fn hibernatable_away(&self) -> Option<Away> {
         if !self.auto_hibernate() {
             return None;
         }
-        let ids = self.tabs.iter().filter(|t| t.can_hibernate()).map(|t| t.id.clone()).collect();
-        Some((ids, std::time::Duration::from_secs(self.prefs.hibernate_minutes as u64 * 60)))
+        let ids = |keep: fn(&mx_core::model::Tab) -> bool| self.tabs.iter().filter(|t| keep(t)).map(|t| t.id.clone()).collect();
+        Some(Away {
+            claudes: ids(|t| t.can_hibernate()),
+            shells: ids(|t| t.kind == mx_core::model::TabKind::Shell && !t.exited && t.launcher_id.is_none() && t.owner.is_none()),
+            after: std::time::Duration::from_secs(self.prefs.hibernate_minutes as u64 * 60),
+        })
     }
 
     pub fn hibernate(&mut self, id: &str) {

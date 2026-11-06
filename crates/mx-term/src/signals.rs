@@ -24,6 +24,24 @@ pub fn exit_code(status: &std::process::ExitStatus) -> Option<i32> {
     status.code().or_else(|| status.signal().map(|s| -s))
 }
 
+pub fn idle_shell(pty: impl std::os::fd::AsFd, pid: u32) -> bool {
+    let Ok(group) = rustix::termios::tcgetpgrp(pty) else { return false };
+    Pid::as_raw(Some(group)) as u32 == pid && shell_without_children(pid)
+}
+
+#[cfg(target_os = "linux")]
+fn shell_without_children(pid: u32) -> bool {
+    const SHELLS: [&str; 6] = ["zsh", "bash", "fish", "sh", "dash", "ksh"];
+    let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).unwrap_or_default();
+    let children = std::fs::read_to_string(format!("/proc/{pid}/task/{pid}/children")).unwrap_or_else(|_| "?".into());
+    SHELLS.contains(&comm.trim()) && children.trim().is_empty()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn shell_without_children(_: u32) -> bool {
+    true
+}
+
 pub fn redraw(pty: impl std::os::fd::AsFd) {
     if let Ok(group) = rustix::termios::tcgetpgrp(pty) {
         let _ = kill_process_group(group, Signal::WINCH);
