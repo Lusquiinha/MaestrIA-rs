@@ -9,6 +9,7 @@ mod layout;
 mod adopt;
 mod notices;
 mod pin;
+mod plugin_footer;
 mod plugin_live;
 mod plugin_screen;
 mod plugin_tools;
