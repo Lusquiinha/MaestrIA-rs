@@ -93,6 +93,13 @@ pub fn entry_action(e: &CatalogEntry, have: Option<(&str, bool)>, busy: bool) ->
     }
 }
 
+pub fn too_new_text(e: &CatalogEntry) -> (String, String) {
+    match &e.min_maestria {
+        Some(min) => (format!("Pede a MaestrIA {min}"), "atualize a MaestrIA".to_owned()),
+        None => ("Pede uma MaestrIA".to_owned(), "mais nova".to_owned()),
+    }
+}
+
 pub fn version_text(new: &str, have: Option<&str>) -> String {
     match have {
         Some(old) if old != new => format!("{old} → {new}"),
@@ -307,10 +314,10 @@ impl CatalogDialog {
         let trailing: AnyElement = match action {
             EntryAction::Busy => Spinner::new(16., t.accent).into_any_element(),
             EntryAction::Dev => div().text_size(px(11.5)).text_color(hsla(t.purple)).child("Desenvolvimento").into_any_element(),
-            EntryAction::TooNew => div()
-                .text_size(px(11.)).text_right().text_color(hsla(t.fg_dim))
-                .child(div().child("Pede uma MaestrIA")).child(div().child("mais nova"))
-                .into_any_element(),
+            EntryAction::TooNew => {
+                let (first, second) = too_new_text(e);
+                div().text_size(px(11.)).text_right().text_color(hsla(t.fg_dim)).child(div().child(first)).child(div().child(second)).into_any_element()
+            }
             EntryAction::Installed => div().text_size(px(11.5)).text_color(hsla(t.fg_faint)).child("Instalado").into_any_element(),
             EntryAction::Install | EntryAction::Update => {
                 let label = if action == EntryAction::Install { "Instalar" } else { "Atualizar" };
@@ -505,6 +512,10 @@ mod tests {
         assert_eq!(entry_action(&e, Some(("2.0.0", false)), false), EntryAction::Installed);
         let far = entry(serde_json::json!({"id": "a", "version": "1", "git": "https://x/a", "maestria": 99}));
         assert_eq!(entry_action(&far, None, false), EntryAction::TooNew);
+        assert_eq!(too_new_text(&far), ("Pede uma MaestrIA".into(), "mais nova".into()));
+        let newer = entry(serde_json::json!({"id": "a", "version": "1", "git": "https://x/a", "maestria": "99.0.0"}));
+        assert_eq!(entry_action(&newer, None, false), EntryAction::TooNew);
+        assert_eq!(too_new_text(&newer), ("Pede a MaestrIA 99.0.0".into(), "atualize a MaestrIA".into()));
     }
 
     #[test]

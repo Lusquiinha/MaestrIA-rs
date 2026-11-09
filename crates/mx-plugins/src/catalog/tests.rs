@@ -188,12 +188,11 @@ fn parsing_drops_bad_entries_and_normalizes_the_rest() {
 }
 
 #[test]
-fn a_minimum_maestria_version_is_compared_against_the_compat_level() {
+fn a_minimum_maestria_version_is_compared_against_this_maestria() {
     let entry = |min: &str| CatalogEntry::from_json(&json!({"id": "x", "version": "1", "git": "g", "maestria": min})).unwrap();
     assert!(entry("2.7.0").fits());
-    assert!(entry("2.6").fits());
-    assert!(!entry("2.8.0").fits());
-    assert!(!entry("3.0.0").fits());
+    assert!(entry(crate::MAESTRIA_VERSION).fits());
+    assert!(!entry("99.0.0").fits());
 }
 
 #[test]

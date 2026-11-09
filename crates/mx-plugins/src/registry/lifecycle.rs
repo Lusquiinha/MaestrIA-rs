@@ -8,7 +8,7 @@ use crate::process::{ConnHandlers, Connection, SHUTDOWN_GRACE, resolve_executabl
 use crate::rpc::RpcError;
 use crate::{BLOCKS_VERSION, PLUGIN_API};
 
-pub const MAESTRIA_COMPAT: &str = "2.7.0";
+pub const MAESTRIA_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const CAPABILITIES: [(&str, i64, bool); 25] = [
     ("rfw", 2, true),

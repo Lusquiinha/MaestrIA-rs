@@ -16,7 +16,7 @@ pub use settings::{PluginSetting, SettingOption, SettingType};
 pub use tools::{PluginTool, RESERVED_TOOLS};
 
 use crate::permission::Permission;
-use crate::{MANIFEST_NAME, PLUGIN_API};
+use crate::{MAESTRIA_VERSION, MANIFEST_NAME, PLUGIN_API};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManifestError(pub String);
@@ -129,6 +129,13 @@ impl PluginManifest {
         if api > PLUGIN_API {
             return Err(ManifestError::new(format!(
                 "o plugin pede a versão {api} da API e esta MaestrIA só conhece até a {PLUGIN_API}"
+            )));
+        }
+        if let Some(min) = j.get("maestria").and_then(Value::as_str)
+            && mx_core::version::compare_versions(min, MAESTRIA_VERSION).is_gt()
+        {
+            return Err(ManifestError::new(format!(
+                "o plugin pede a MaestrIA {min} ou mais nova e esta é a {MAESTRIA_VERSION}: atualize a MaestrIA"
             )));
         }
         let main = parse_main(j.get("main"))?;
