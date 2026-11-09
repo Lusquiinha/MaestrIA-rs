@@ -39,6 +39,11 @@ fn bad_manifests_are_refused_with_the_verbatim_message() {
         error_of(base(json!({"maestria": 99}))),
         "o plugin pede a versão 99 da API e esta MaestrIA só conhece até a 1"
     );
+    assert_eq!(
+        error_of(base(json!({"maestria": "99.0.0"}))),
+        format!("o plugin pede a MaestrIA 99.0.0 ou mais nova e esta é a {}: atualize a MaestrIA", mx_plugins::MAESTRIA_VERSION)
+    );
+    assert!(parse(base(json!({"maestria": mx_plugins::MAESTRIA_VERSION}))).is_ok());
     assert_eq!(error_of(base(json!({"main": 3}))), "\"main\" é uma lista: [\"node\", \"main.js\"]");
     let cmd = |c: Value| base(json!({"contributes": {"commands": [c]}}));
     assert_eq!(

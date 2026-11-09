@@ -98,6 +98,19 @@ fn closing_a_view_closes_its_embedded_terminals() {
 }
 
 #[test]
+fn closing_a_modal_closes_its_embedded_terminals() {
+    let mut rig = rig();
+    let p = info(json!({}));
+    let req = OpenShell { cwd: Some("/repo".into()), command: Some("top".into()), label: None, owned: true, tag: Some("t".into()), embedded: true };
+    let term = rig.s.plugin_open_shell("demo", req);
+    rig.s.view_open(&p, open("main", json!([{"type": "terminal", "tabId": term}]), true));
+    assert!(rig.s.modal().is_some());
+    rig.s.close_modal();
+    assert!(rig.s.modal().is_none());
+    assert!(!rig.s.has_tab(&term));
+}
+
+#[test]
 fn consoles_take_lines_through_append_and_clear() {
     let mut rig = rig();
     let p = info(json!({}));

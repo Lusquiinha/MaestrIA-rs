@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use mx_core::version::compare_versions;
 use serde_json::{Map, Value};
 
-use crate::{MAESTRIA_COMPAT, PLUGIN_API};
+use crate::{MAESTRIA_VERSION, PLUGIN_API};
 
 pub use fetch::{git_head, sha256_file};
 pub use updates::{EVERY, FIRST_DELAY, PluginUpdates, fetch_icon};
@@ -160,7 +160,7 @@ impl CatalogEntry {
 
     pub fn fits(&self) -> bool {
         self.api <= PLUGIN_API
-            && self.min_maestria.as_deref().is_none_or(|min| compare_versions(min, MAESTRIA_COMPAT) != Ordering::Greater)
+            && self.min_maestria.as_deref().is_none_or(|min| compare_versions(min, MAESTRIA_VERSION) != Ordering::Greater)
     }
 }
 

@@ -196,12 +196,12 @@ impl Store {
 
     fn has_windows(&self, plugin: &str) -> bool {
         self.plugin.views.values().any(|v| v.plugin_id == plugin)
-            || self.tabs.iter().any(|t| t.owner.as_deref() == Some(plugin))
+            || self.tabs.iter().any(|t| !t.embedded && t.owner.as_deref() == Some(plugin))
     }
 
     pub fn open_windows(&self, plugin: &str) -> usize {
         self.plugin.views.values().filter(|v| v.plugin_id == plugin).count()
-            + self.tabs.iter().filter(|t| t.owner.as_deref() == Some(plugin)).count()
+            + self.tabs.iter().filter(|t| !t.embedded && t.owner.as_deref() == Some(plugin)).count()
     }
 
     pub fn rail_plugins(&self) -> Vec<String> {
@@ -216,7 +216,11 @@ impl Store {
 
     pub fn footer_commands(&self) -> Vec<PluginCommand> {
         let Some(r) = &self.plugin.registry else { return Vec::new() };
-        rail::footer_commands(&r.sidebar_commands(), &self.rail_plugins())
+        rail::footer_commands(&r.commands(), &self.rail_plugins())
+    }
+
+    pub fn command_busy(&self, full_id: &str) -> bool {
+        self.plugin.registry.as_ref().is_some_and(|r| r.busy().contains(full_id))
     }
 
     pub fn rail_badge(&self, plugin: &str) -> Option<RailBadge> {

@@ -9,8 +9,7 @@ pub const BACKDROP: f32 = 0.42;
 
 pub fn card_size(viewport: (f32, f32), width: Option<f64>, height: Option<f64>) -> (f32, f32) {
     let (w, h) = viewport;
-    let wide = (w - 48.).clamp(320., 820.);
-    let width = (width.map_or(w - 48., |v| v as f32)).min(wide).max(320.);
+    let width = width.map_or((w - 48.).min(820.), |v| (v as f32).min(w - 48.)).max(320.);
     let height = (height.map_or(h - 48., |v| v as f32)).min(h * 0.88).max(240.);
     (width, height)
 }
@@ -129,7 +128,7 @@ mod tests {
         assert_eq!(card_size((800., 600.), None, None), (752., 528.));
         assert_eq!(card_size((1200., 900.), Some(500.), Some(400.)), (500., 400.));
         assert_eq!(card_size((1200., 900.), Some(100.), Some(2000.)), (320., 792.));
-        assert_eq!(card_size((1200., 900.), Some(5000.), Some(10.)), (820., 240.));
+        assert_eq!(card_size((1200., 900.), Some(5000.), Some(10.)), (1152., 240.));
     }
 
     #[test]

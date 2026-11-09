@@ -4,8 +4,8 @@ Host de plugins sem UI (spec 04 §0–§7). Tokio. RFW fica opaco em `PluginView
 
 ## Constantes (raiz)
 `PLUGIN_API=1`, `BLOCKS_VERSION=2`, `MANIFEST_NAME`, `SIDEBAR_VIEW_ID="sidebar"`, `LOG_CAP=400`,
-`MAX_SIDEBAR_COMMANDS=3`. `MAESTRIA_COMPAT="2.7.0"` (versão da MaestrIA que este host diz ser nas comparações
-de compatibilidade, ex. o mínimo do catálogo). `CAPABILITIES: [(chave, valor, landed)]` = as flags do
+`MAX_SIDEBAR_COMMANDS=3`. `MAESTRIA_VERSION` (a versão deste app; um `"maestria": "3.6.2"` em texto no manifesto ou no catálogo é a
+MaestrIA mínima, e um plugin que pede uma mais nova é recusado ao carregar e marcado no catálogo). `CAPABILITIES: [(chave, valor, landed)]` = as flags do
 `initialize` na ordem do 2.7; só as `landed` vão no fio — quem entrega um widget liga a dele aqui.
 
 ## Manifesto (`manifest`)

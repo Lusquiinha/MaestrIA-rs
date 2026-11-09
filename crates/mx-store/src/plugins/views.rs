@@ -152,6 +152,10 @@ impl Store {
 
     pub(crate) fn closing_view(&mut self, tab: &str) {
         let Some(view) = self.plugin.views.remove(tab) else { return };
+        self.close_embedded_terminals(&view);
+    }
+
+    fn close_embedded_terminals(&mut self, view: &PluginView) {
         for t in view.terminal_tabs() {
             let owned = self
                 .tab(&t)
@@ -167,6 +171,7 @@ impl Store {
         if let Some(r) = &self.plugin.registry {
             r.view_closed(&view.plugin_id, &view.id);
         }
+        self.close_embedded_terminals(&view);
         self.mark(Areas::PLUGINS);
     }
 

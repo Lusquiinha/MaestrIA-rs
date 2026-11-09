@@ -7,8 +7,8 @@ mod tree;
 mod widgets;
 
 use gpui::{
-    AnyElement, App, Context, Entity, FocusHandle, FontWeight, InteractiveElement, IntoElement,
-    ParentElement, Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    AnyElement, App, Context, Div, ElementId, Entity, FocusHandle, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, Render, ScrollHandle, SharedString, Stateful, StatefulInteractiveElement, Styled, Window, div, px,
 };
 use mx_core::model::sidebar::RowKey;
 use mx_store::Store;
@@ -21,6 +21,8 @@ use crate::app::icons::{Icon, icon};
 use crate::keymap::{Action, keymap_of};
 use crate::app::theme::{Mx, RADIUS};
 use crate::app::tooltip::tip;
+use crate::chrome::anim::Spinner;
+use crate::rfw_view::plugin_glyph;
 use tree::Ctx;
 use widgets::Hover;
 
@@ -164,6 +166,7 @@ impl Sidebar {
                 menus::open(Target::FooterAdd, window, cx)
             }))
             .child(strip_icon(mx, "footer-history", Icon::History, "Retomar uma conversa", |_, cx| drop(chats::open(cx))))
+            .children(plugin_buttons(mx, &self.host, &self.host.read(cx).store))
             .child(div().flex_1())
             .child(strip_icon(mx, "footer-account", Icon::Speed, "Conta & uso", |window, cx| {
                 settings::open(Section::Account, window, cx)
@@ -191,6 +194,12 @@ fn strip_icon(
     tooltip: impl Into<SharedString>,
     on_click: impl Fn(&mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
+    strip_button(mx, id, tooltip.into())
+        .on_click(move |_, window, cx| on_click(window, cx))
+        .child(icon(glyph, 18., mx.fg_dim))
+}
+
+fn strip_button(mx: &Mx, id: impl Into<ElementId>, tooltip: SharedString) -> Stateful<Div> {
     div()
         .id(id)
         .flex_none()
@@ -201,9 +210,29 @@ fn strip_icon(
         .justify_center()
         .cursor_pointer()
         .hover(|s| s.bg(mx.bg_hover))
-        .tooltip(tip(tooltip.into()))
-        .on_click(move |_, window, cx| on_click(window, cx))
-        .child(icon(glyph, 18., mx.fg_dim))
+        .tooltip(tip(tooltip))
+}
+
+fn plugin_buttons(mx: &Mx, host: &Entity<StoreHost>, store: &Store) -> Vec<AnyElement> {
+    let Some(r) = store.plugins() else { return Vec::new() };
+    store
+        .footer_commands()
+        .into_iter()
+        .map(|c| {
+            let full_id = c.full_id();
+            let glyph = if store.command_busy(&full_id) {
+                Spinner::new(16., mx.theme.accent).into_any_element()
+            } else {
+                let dir = r.get(&c.plugin_id).map(|p| p.dir);
+                plugin_glyph(c.icon.as_deref(), dir.as_deref(), 18., mx.fg_dim)
+            };
+            let host = host.clone();
+            strip_button(mx, SharedString::from(format!("footer-plugin:{full_id}")), c.title.into())
+                .on_click(move |_, _, cx| update_store(&host, cx, |s| s.run_plugin_command(&full_id, None)))
+                .child(glyph)
+                .into_any_element()
+        })
+        .collect()
 }
 
 fn no_hits(mx: &Mx, host: &Entity<StoreHost>, store: &Store) -> AnyElement {

@@ -180,7 +180,6 @@ fn the_capability_list_is_the_2_7_one_plus_picture_zoom_focus_zoom_pan_and_key_l
         ]
     );
     assert!(mx_plugins::CAPABILITIES.iter().all(|c| c.2));
-    assert_eq!(mx_plugins::MAESTRIA_COMPAT, "2.7.0");
 }
 
 #[tokio::test]
