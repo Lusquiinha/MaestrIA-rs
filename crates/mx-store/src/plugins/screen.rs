@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use mx_core::layout::{DropSide, PaneNode};
+use mx_core::layout::PaneNode;
 use mx_core::model::Tab;
 
 use crate::changes::Areas;
@@ -169,8 +169,9 @@ impl Store {
 
     fn land_beside_focus(&mut self, tab: &str) {
         let beside = self.focused_tab_id();
-        self.panes = match (self.panes.take(), beside) {
-            (Some(tree), Some(b)) => Some(tree.insert(tab, &b, DropSide::Right)),
+        let spot = beside.filter(|_| self.panes.is_some()).map(|b| self.beside(&b));
+        self.panes = match (self.panes.take(), spot) {
+            (Some(tree), Some((target, side))) => Some(tree.insert(tab, &target, side)),
             _ => Some(PaneNode::leaf(tab)),
         };
         self.focused = Some(tab.to_owned());

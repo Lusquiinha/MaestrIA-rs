@@ -88,6 +88,7 @@ impl Store {
             theme: Some(p.theme.clone()),
             typography: p.typography.clone(),
             cursor_shape: p.cursor_shape,
+            pane_open: p.pane_open,
             shortcuts: p.shortcuts.clone(),
             plugins: p.plugins.clone(),
             layout: Some(Layout {

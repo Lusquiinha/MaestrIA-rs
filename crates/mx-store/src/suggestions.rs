@@ -6,6 +6,7 @@ use mx_plugins::rpc::CreatedSession;
 
 use crate::git_ops::NewTask;
 use crate::plugins::Reply;
+use crate::placement::How;
 use crate::store::Store;
 use crate::tabs_open::ClaudeSpec;
 
@@ -127,7 +128,7 @@ impl Store {
         spec.prompt = Some(prompt.map_or(s.prompt, str::to_owned));
         self.settle_suggestion(tab, task, SuggestionEnd::Started);
         let id = self.open_claude(spec);
-        self.select(&id);
+        self.select_with(&id, How::FromSetting);
         Some(id)
     }
 

@@ -10,6 +10,7 @@ use mx_plugins::rpc::{OpenClaude, RpcError, SendKeys, SendText, TabOwner};
 use serde_json::{Value, json};
 
 use super::Effect;
+use crate::placement::How;
 use crate::store::Store;
 use crate::tabs_open::ClaudeSpec;
 
@@ -102,7 +103,7 @@ impl Store {
             return self.open_claude_placed(spec, false);
         }
         let id = self.open_claude(spec);
-        self.select(&id);
+        self.select_with(&id, How::FromSetting);
         id
     }
 

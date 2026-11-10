@@ -4,7 +4,7 @@ use gpui::{
     canvas, point, prelude::FluentBuilder, px,
 };
 use mx_core::model::{ClaudeStatus, Tab, TabKind};
-use mx_store::{Store, TabTint};
+use mx_store::{How, Store, TabTint};
 
 use crate::app::avatar::dot;
 use crate::app::drag::{DraggedTab, TabGhost};
@@ -249,7 +249,7 @@ impl TabRow {
             .on_click(move |_, _, cx: &mut App| {
                 update_store(&host_click, cx, |s| match &group {
                     Some(g) => s.open_group(g),
-                    None => s.select(&id),
+                    None => s.select_with(&id, How::FromSetting),
                 })
             })
             .on_drag(drag, |d: &DraggedTab, at, _, cx| {

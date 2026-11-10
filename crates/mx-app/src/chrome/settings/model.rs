@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use mx_core::model::LauncherIcon;
-use mx_core::persist::CursorShape;
+use mx_core::persist::{CursorShape, PaneOpen};
 use mx_theme::{Face, Theme, Typography};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -189,6 +189,7 @@ pub struct SettingsData {
     pub faces: Vec<Face>,
     pub zoom_keys: (String, String),
     pub cursor_shape: CursorShape,
+    pub pane_open: PaneOpen,
     pub status_bar_top: bool,
     pub active_tray: bool,
     pub shortcuts: Vec<ShortcutRow>,
@@ -219,6 +220,7 @@ pub enum SettingsAction {
     SetTheme(String),
     SetTypography(Typography),
     SetCursorShape(CursorShape),
+    SetPaneOpen(PaneOpen),
     SetStatusBarTop(bool),
     SetActiveTray(bool),
     ResetShortcuts(Option<String>),

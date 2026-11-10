@@ -43,6 +43,7 @@ pub use hibernate::{Away, HIBERNATED, SHELL_SLEPT};
 pub use lifecycle::AGENTS_COMMAND;
 pub use msg::{StoreMsg, StoreSender, TaskDone};
 pub use notices::{Bell, NoticeEntry};
+pub use placement::How;
 pub use plugins::{DialogAnswer, DialogAsk, Effect, PluginDialog, PluginHost, PluginUi};
 pub use ports::{Ports, StoreOptions};
 pub use prefs::Prefs;

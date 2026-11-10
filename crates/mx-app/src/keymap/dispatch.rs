@@ -1,7 +1,7 @@
 use gpui::{App, Entity, KeyContext, KeyDownEvent, Window};
 use mx_plugins::Plugins;
 use mx_plugins::chord::KeyPress;
-use mx_store::{ClaudeSpec, DocPlace, Store};
+use mx_store::{ClaudeSpec, DocPlace, How, Store};
 
 use super::action::Action;
 use super::chord::{LINUX, is_editing_key, may_be_shortcut, press_of, terminal_key};
@@ -91,7 +91,7 @@ pub fn run(store: &mut Store, hit: &Hit) -> Option<UiRequest> {
     match hit {
         Hit::Action(a) => run_action(store, *a),
         Hit::Panel(id) => {
-            store.select(id);
+            store.select_with(id, How::FromSetting);
             None
         }
         Hit::Plugin(full_id) => {

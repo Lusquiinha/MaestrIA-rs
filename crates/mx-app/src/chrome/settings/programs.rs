@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use gpui::{AnyElement, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, SharedString, Styled, div, px};
+use gpui::{AnyElement, Context, Div, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement, SharedString, StatefulInteractiveElement, Styled, div, prelude::FluentBuilder, px};
+use mx_core::persist::PaneOpen;
 
 use super::dialog::{SettingsDialog, heading};
 use super::model::{SettingsAction, hibernate_label, hibernate_less, hibernate_more, open_panels, remove_launcher_tip, MAX_HIBERNATE, MIN_HIBERNATE};
@@ -50,10 +51,55 @@ pub fn keep_on_quit_hint(keep: bool) -> &'static str {
     }
 }
 
+pub fn pane_open_label(mode: PaneOpen) -> &'static str {
+    match mode {
+        PaneOpen::Replace => "Substituir o painel em foco",
+        PaneOpen::Beside => "Abrir ao lado",
+        PaneOpen::Below => "Abrir embaixo",
+        PaneOpen::Auto => "Automático",
+    }
+}
+
+fn pane_sketch(mode: PaneOpen, old: Hsla, new: Hsla) -> Div {
+    let cell = |c: Hsla| div().flex_1().rounded(px(2.)).bg(c);
+    let frame = div().w(px(56.)).h(px(36.)).flex().gap(px(3.));
+    match mode {
+        PaneOpen::Replace => frame.child(cell(new)),
+        PaneOpen::Beside => frame.flex_row().child(cell(old)).child(cell(new)),
+        PaneOpen::Below => frame.flex_col().child(cell(old)).child(cell(new)),
+        PaneOpen::Auto => frame
+            .flex_row()
+            .child(cell(old))
+            .child(div().flex_1().flex().flex_col().gap(px(3.)).child(cell(new.opacity(0.55))).child(cell(new.opacity(0.55)))),
+    }
+}
+
+fn pane_open_section(d: &SettingsDialog, cx: &mut Context<SettingsDialog>) -> AnyElement {
+    let t = theme(cx);
+    let current = d.data.pane_open;
+    let options = PaneOpen::ALL.into_iter().map(|mode| {
+        let on = mode == current;
+        let send = d.send(SettingsAction::SetPaneOpen(mode));
+        let sketch = div().flex().justify_center().py(px(8.)).rounded(px(5.)).bg(hsla(t.canvas))
+            .child(pane_sketch(mode, hsla(t.fg_faint).opacity(0.35), hsla(t.accent)));
+        div().id(SharedString::from(format!("pane-open-{}", mode.key()))).debug_selector(move || format!("pane-open:{}", mode.key()))
+            .flex_1().min_w_0().flex().flex_col().gap(px(6.)).p(px(6.)).rounded(px(8.)).cursor_pointer()
+            .border_1().border_color(hsla(if on { t.accent } else { t.border })).hover(|s| s.bg(hsla(t.bg_hover)))
+            .child(sketch)
+            .child(div().px(px(2.)).text_size(px(12.)).text_color(hsla(t.fg)).child(pane_open_label(mode)))
+            .when(mode == PaneOpen::Auto, |c| c.child(div().px(px(2.)).text_size(px(11.)).line_height(px(15.)).text_color(hsla(t.fg_faint)).child("Ao lado ou embaixo, pelo formato do painel")))
+            .on_click(move |_, w, cx| send(w, cx))
+    });
+    div().flex().flex_col().mb(px(24.))
+        .child(heading("Ao abrir uma sessão", Some("O que acontece com a tela quando você abre uma sessão pela lateral, por um atalho ou cria uma nova. Se não couber mais um painel, ela substitui o painel em foco."), false, None, cx))
+        .child(div().flex().gap(px(8.)).children(options))
+        .into_any_element()
+}
+
 pub fn sessions(d: &mut SettingsDialog, cx: &mut Context<SettingsDialog>) -> AnyElement {
     let m = d.data.hibernate_minutes;
     let on = m > 0;
-    let mut col = div().flex().flex_col().child(heading(
+    let mut col = div().flex().flex_col().child(pane_open_section(d, cx)).child(heading(
         "Hibernação",
         Some("Uma sessão do Claude parada no prompt custa uns 200MB de RAM pra não fazer nada. Hibernar é desligar o processo e ficar com a conversa: a linha continua na lateral, e o clique nela retoma de onde parou. Também dá pra hibernar uma sessão à mão, pelo menu da linha."),
         false,

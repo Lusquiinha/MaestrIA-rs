@@ -1,7 +1,7 @@
 use gpui::{
     AnyView, App, AppContext, ClipboardItem, Context, DragMoveEvent, Entity, FocusHandle, InteractiveElement, IntoElement,
     KeyDownEvent, ParentElement, Render, StatefulInteractiveElement, StyleRefinement, Styled,
-    Window, deferred, div, prelude::FluentBuilder, px,
+    Window, canvas, deferred, div, prelude::FluentBuilder, px,
 };
 use mx_store::{Areas, Changes, Effect, Store};
 
@@ -219,6 +219,22 @@ impl Root {
     }
 }
 
+fn pane_area_probe(host: Entity<StoreHost>) -> impl IntoElement {
+    canvas(
+        move |bounds, _, cx| {
+            let size = (f64::from(f32::from(bounds.size.width)), f64::from(f32::from(bounds.size.height)));
+            if host.read(cx).store.pane_area() != Some(size) {
+                host.update(cx, |h, _| h.store.set_pane_area(size.0, size.1));
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
+}
+
 struct Blank;
 
 impl Render for Blank {
@@ -277,6 +293,7 @@ impl Render for Root {
             .flex_1()
             .min_w_0()
             .relative()
+            .child(pane_area_probe(self.host.clone()))
             .child(self.panes.clone())
             .child(slots::layer(owners))
             .child(deferred(self.notices(banner_text, top, cx)).with_priority(NOTICES_ABOVE_PLUGIN_LAYERS));
@@ -361,6 +378,11 @@ impl Root {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_pane_gap_matches_the_one_the_store_measures_with() {
+        assert_eq!(f64::from(GAP), mx_core::layout::PANE_GAP);
+    }
 
     #[test]
     fn the_sidebar_never_goes_below_248_nor_eats_the_last_280_px() {

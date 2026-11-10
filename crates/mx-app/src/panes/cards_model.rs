@@ -1,5 +1,5 @@
 use mx_core::model::{ClaudeStatus, Tab, TabKind, worktree::DETACHED};
-use mx_store::Store;
+use mx_store::{How, Store};
 
 pub const GAP: f32 = 12.;
 pub const CARD_MIN: f32 = 280.;
@@ -132,7 +132,7 @@ pub fn tile_opens(sidebar_hidden: bool, shown: Option<&str>, plugin: &str) -> bo
 pub fn open_card(store: &mut Store, id: &str) {
     match store.group_of(id).map(|g| g.id.clone()) {
         Some(g) => store.open_group(&g),
-        None => store.select(id),
+        None => store.select_with(id, How::FromSetting),
     }
 }
 

@@ -5,6 +5,7 @@ use serde_json::Value;
 
 use crate::changes::Areas;
 use crate::msg::Done;
+use crate::placement::How;
 use crate::store::Store;
 
 impl Store {
@@ -25,7 +26,7 @@ impl Store {
         match commands::plan(&cmd, &values, tab.as_deref()) {
             CommandRun::Terminal { command } => {
                 let id = self.open_shell(&folder, Some(&values.cwd), Some(&command), None, None);
-                self.select(&id);
+                self.select_with(&id, How::FromSetting);
             }
             CommandRun::Background { command } => {
                 let (runner, cwd) = (self.p.runner.clone(), values.cwd.clone());

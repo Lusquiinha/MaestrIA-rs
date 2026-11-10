@@ -6,6 +6,7 @@ use mx_sys::git::GitOutcome;
 
 use crate::changes::Areas;
 use crate::msg::Done;
+use crate::placement::How;
 use crate::store::Store;
 use crate::tabs_open::ClaudeSpec;
 
@@ -131,7 +132,7 @@ impl Store {
         spec.prompt = task.prompt.clone();
         let id = self.open_claude(spec);
         if task.select {
-            self.select(&id);
+            self.select_with(&id, How::FromSetting);
         }
         self.answer_created(task.reply, Some(&id));
     }

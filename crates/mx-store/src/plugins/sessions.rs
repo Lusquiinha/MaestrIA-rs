@@ -9,6 +9,7 @@ use mx_sys::history::{self, ReadOptions};
 
 use super::Reply;
 use crate::readers::DocPlace;
+use crate::placement::How;
 use crate::store::Store;
 
 pub struct ChatLister {
@@ -91,7 +92,7 @@ impl Store {
             Some(id) => return Err(RpcError::no_tab(&id)),
             None => self.focused_tab_id().ok_or_else(RpcError::no_focused_tab)?,
         };
-        self.select(&id);
+        self.select_with(&id, How::FromSetting);
         Ok(())
     }
 

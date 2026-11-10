@@ -44,6 +44,7 @@ pub fn data() -> SettingsData {
         faces: vec![HACK, mx_theme::FACES.iter().copied().find(|f| f.family == "DejaVu Sans Mono").unwrap_or(HACK)],
         zoom_keys: ("Ctrl+=".into(), "Ctrl+−".into()),
         cursor_shape: mx_core::persist::CursorShape::Beam,
+        pane_open: mx_core::persist::PaneOpen::Auto,
         status_bar_top: false,
         active_tray: false,
         shortcuts: shortcuts(),
