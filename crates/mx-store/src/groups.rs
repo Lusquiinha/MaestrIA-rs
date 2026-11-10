@@ -154,6 +154,7 @@ impl Store {
             .and_then(|t| layout::from_json(t, &at))
             .or_else(|| Some(PaneNode::leaf(&first)));
         self.focused = self.order().into_iter().next();
+        self.forget_layout_history();
         for id in self.open_pane_ids() {
             if self.tab(&id).is_some_and(|t| t.hibernated) {
                 self.wake(&id);

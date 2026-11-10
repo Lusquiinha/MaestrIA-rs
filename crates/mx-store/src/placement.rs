@@ -80,6 +80,10 @@ impl Store {
     }
 
     pub fn select_with(&mut self, id: &str, how: How) {
+        self.tracked(|s| s.select_now(id, how));
+    }
+
+    fn select_now(&mut self, id: &str, how: How) {
         let how = self.resolve(how);
         let Some(tab) = self.tab(id) else { return };
         if tab.embedded {
@@ -104,6 +108,10 @@ impl Store {
     }
 
     pub(crate) fn place_with(&mut self, id: &str, how: How) {
+        self.tracked(|s| s.place_with_now(id, how));
+    }
+
+    fn place_with_now(&mut self, id: &str, how: How) {
         let side = match self.resolve(how) {
             How::Split(side) => Some(side),
             How::Auto => None,
@@ -154,6 +162,10 @@ impl Store {
     }
 
     pub(crate) fn place(&mut self, id: &str) {
+        self.tracked(|s| s.place_now(id));
+    }
+
+    fn place_now(&mut self, id: &str) {
         self.enter_screen_of(id);
         match self.panes.take() {
             None => self.panes = Some(PaneNode::leaf(id)),
@@ -172,12 +184,11 @@ impl Store {
                     let (target, side) = self.beside(&host);
                     self.panes = self.panes.take().map(|p| p.insert(id, &target, side));
                 } else if let Some(loose) = loose {
-                    let before = self.snapshot();
                     if let Some(p) = self.panes.as_mut() {
                         p.swap(&loose, id);
                     }
                     self.focused = Some(id.to_owned());
-                    self.offer_undo(before, &loose);
+                    self.left_screen(&loose);
                 } else if !self.fill_hole(id) {
                     self.panes = self.panes.take().map(|p| self.split_largest(p, id));
                 }
@@ -201,6 +212,10 @@ impl Store {
     }
 
     pub(crate) fn place_beside(&mut self, id: &str, beside: Option<&str>) {
+        self.tracked(|s| s.place_beside_now(id, beside));
+    }
+
+    fn place_beside_now(&mut self, id: &str, beside: Option<&str>) {
         self.enter_screen_of(id);
         let mut beside = beside.map(str::to_owned);
         if beside.as_deref().is_some_and(|b| self.is_pinned(b)) {

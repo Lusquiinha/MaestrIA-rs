@@ -32,7 +32,7 @@ impl Store {
 
     pub fn swap_toward(&mut self, side: DropSide) {
         let Some((from, to)) = self.pane_toward(side) else { return };
-        if !self.panes.as_mut().is_some_and(|p| p.swap_leaves(&from, &to)) {
+        if !self.tracked(|s| s.panes.as_mut().is_some_and(|p| p.swap_leaves(&from, &to))) {
             return;
         }
         self.save();

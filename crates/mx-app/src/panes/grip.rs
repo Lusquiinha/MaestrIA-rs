@@ -52,6 +52,7 @@ pub fn grip(
     };
     let host_path = path.to_vec();
     let host = host.clone();
+    let grab = host.clone();
     let el = div()
         .id(SharedString::from(format!("grip-el:{path:?}:{gutter}")))
         .group(group)
@@ -59,7 +60,10 @@ pub fn grip(
         .flex()
         .items_center()
         .justify_center()
-        .on_drag(drag, |_, _, _, cx| cx.new(|_| Nothing))
+        .on_drag(drag, move |_, _, _, cx| {
+            update_store(&grab, cx, |s| s.begin_resize());
+            cx.new(|_| Nothing)
+        })
         .on_click(move |ev, _, cx: &mut App| {
             if ev.click_count() == 2 {
                 update_store(&host, cx, |s| s.equalize_split(&host_path));

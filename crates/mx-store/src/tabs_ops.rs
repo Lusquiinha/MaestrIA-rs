@@ -28,9 +28,10 @@ impl Store {
         if !self.is_open(id) {
             return;
         }
-        let before = self.snapshot();
-        self.drop_from_tree(id);
-        self.offer_undo(before, id);
+        self.tracked(|s| {
+            s.drop_from_tree(id);
+            s.left_screen(id);
+        });
         self.save();
         self.mark(Areas::PANES | Areas::SIDEBAR);
     }
@@ -156,6 +157,10 @@ impl Store {
     }
 
     pub fn drop_tab(&mut self, id: &str, target: &str, drop: PaneDrop) {
+        self.tracked(|s| s.drop_tab_now(id, target, drop));
+    }
+
+    fn drop_tab_now(&mut self, id: &str, target: &str, drop: PaneDrop) {
         if let PaneDrop::Edge(side) = drop {
             self.drop_at_edge(id, side);
             return;
@@ -171,7 +176,6 @@ impl Store {
             self.select(id);
             return;
         }
-        let before = self.snapshot();
         let swapped = drop == PaneDrop::Swap && self.panes.as_mut().is_some_and(|p| p.swap_leaves(target, id));
         if !swapped {
             self.drop_from_tree(id);
@@ -191,12 +195,16 @@ impl Store {
             }
         }
         self.focused = Some(id.to_owned());
-        self.offer_undo(before, target);
+        self.left_screen(target);
         self.save();
         self.mark(Areas::PANES | Areas::SIDEBAR);
     }
 
     pub fn drop_at_edge(&mut self, id: &str, side: DropSide) {
+        self.tracked(|s| s.drop_at_edge_now(id, side));
+    }
+
+    fn drop_at_edge_now(&mut self, id: &str, side: DropSide) {
         if !self.has_tab(id) || side == DropSide::Center {
             return;
         }
@@ -306,23 +314,31 @@ impl Store {
     }
 
     pub fn resize_split(&mut self, path: &[usize], gutter: isize, delta: f64, total: f64) {
-        let Some(split) = self.panes.as_mut().and_then(|p| p.split_at_mut(path)) else {
+        let resized = self.resizing(|s| match s.panes.as_mut().and_then(|p| p.split_at_mut(path)) {
+            Some(split) => {
+                split.resize(gutter, delta, total);
+                true
+            }
+            None => false,
+        });
+        if !resized {
             return;
-        };
-        split.resize(gutter, delta, total);
+        }
         self.save();
         self.mark(Areas::PANES);
     }
 
     pub fn equalize_panes(&mut self) {
-        let Some(tree) = self.panes.as_mut() else { return };
-        tree.equalize();
+        if self.panes.is_none() {
+            return;
+        }
+        self.tracked(|s| s.panes.as_mut().map(PaneNode::equalize));
         self.save();
         self.mark(Areas::PANES);
     }
 
     pub fn equalize_split(&mut self, path: &[usize]) {
-        if !self.panes.as_mut().is_some_and(|p| p.equalize_at(path)) {
+        if !self.tracked(|s| s.panes.as_mut().is_some_and(|p| p.equalize_at(path))) {
             return;
         }
         self.save();

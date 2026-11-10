@@ -260,7 +260,7 @@ impl Render for Root {
         let hidden = prefs.sidebar_hidden;
         let width = fit_sidebar(prefs.sidebar_width as f32, f32::from(window.viewport_size().width));
         let sessions_open = store.bell().sessions_open;
-        let banner_text = store.banner().map(|b| (b.to_owned(), store.can_undo_panes()));
+        let banner_text = store.banner().map(|b| (b.to_owned(), store.banner_offers_undo()));
 
         let rail = AnyView::from(self.rail.clone())
             .cached(StyleRefinement::default().w(px(rail::WIDTH + GAP)).h_full().flex_none());

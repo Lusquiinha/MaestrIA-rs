@@ -55,9 +55,12 @@ Group(idx of 4)} chosen_tint_of reading() last_import() matches(t) hits() has_hi
   `zoomed() toggle_zoom toggle_zoom_of(id) unzoom -> bool`.
 - Pane keys: `focus_toward(side) swap_toward(side)` (geometric neighbour from `pane_area`, else the order)
   `open_shell_toward(folder, feature, side)`.
-- Pane undo (one level, lives as long as its banner): a pane replaced or dismissed shows "<título> saiu da
-  tela" and `can_undo_panes() undo_panes() -> bool` restore the tree, focus, hole and pins. Any later tree
-  change, another banner, a screen change or the pane's tab closing spoils it; closing a pane offers none.
+- Pane undo (layout history per screen, last 30 steps): replace, dismiss, drop, split, swap, equalize and each
+  resize gesture (`begin_resize` then `resize_split`s) push the tree, focus, hole and pins before them;
+  `can_undo_panes() undo_panes() -> bool` pop one step, skipping steps whose tabs were closed. Cycling, focus,
+  zoom, screen parking, startup and opening a group are not steps (the last two clear the screen's history).
+  A pane that left the screen shows "<título> saiu da tela"; `banner_offers_undo()` says whether that banner
+  still carries the desfazer button.
 - Panel hotkeys (chord ids): `set_hotkey(id, Option<&str>)` steals from other panels with a banner,
   `release_hotkey(chord)` (an action took it), `retain_hotkeys(keep)` (load-time drop of action-owned keys),
   `panel_for(accepts) -> Option<id>`; free fn `hotkey_label(id)`.

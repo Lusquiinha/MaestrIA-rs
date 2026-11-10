@@ -105,6 +105,7 @@ impl Store {
             self.prefs.sidebar_view = None;
         }
         self.announce_sidebar(live, false);
+        self.rebase_tracking();
         self.mark(Areas::PANES | Areas::SIDEBAR | Areas::PLUGINS | Areas::PREFS);
     }
 
