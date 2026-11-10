@@ -53,6 +53,11 @@ Group(idx of 4)} chosen_tint_of reading() last_import() matches(t) hits() has_hi
   reveal_tab look set_panes`.
 - Zoom (render-only, never saved; ends when the pane leaves the tree, loses focus or the screen changes):
   `zoomed() toggle_zoom toggle_zoom_of(id) unzoom -> bool`.
+- Pane keys: `focus_toward(side) swap_toward(side)` (geometric neighbour from `pane_area`, else the order)
+  `open_shell_toward(folder, feature, side)`.
+- Pane undo (one level, lives as long as its banner): a pane replaced or dismissed shows "<título> saiu da
+  tela" and `can_undo_panes() undo_panes() -> bool` restore the tree, focus, hole and pins. Any later tree
+  change, another banner, a screen change or the pane's tab closing spoils it; closing a pane offers none.
 - Panel hotkeys (chord ids): `set_hotkey(id, Option<&str>)` steals from other panels with a banner,
   `release_hotkey(chord)` (an action took it), `retain_hotkeys(keep)` (load-time drop of action-owned keys),
   `panel_for(accepts) -> Option<id>`; free fn `hotkey_label(id)`.
