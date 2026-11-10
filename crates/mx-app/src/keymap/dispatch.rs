@@ -1,4 +1,5 @@
 use gpui::{App, Entity, KeyContext, KeyDownEvent, Window};
+use mx_core::layout::DropSide;
 use mx_plugins::Plugins;
 use mx_plugins::chord::KeyPress;
 use mx_store::{ClaudeSpec, DocPlace, How, Store};
@@ -144,6 +145,25 @@ pub fn run_action(store: &mut Store, a: Action) -> Option<UiRequest> {
         Action::PrevPane => store.cycle_pane(-1),
         Action::NextSession => store.cycle(1),
         Action::PrevSession => store.cycle(-1),
+        Action::FocusLeft => store.focus_toward(DropSide::Left),
+        Action::FocusRight => store.focus_toward(DropSide::Right),
+        Action::FocusUp => store.focus_toward(DropSide::Top),
+        Action::FocusDown => store.focus_toward(DropSide::Bottom),
+        Action::SwapLeft => store.swap_toward(DropSide::Left),
+        Action::SwapRight => store.swap_toward(DropSide::Right),
+        Action::SwapUp => store.swap_toward(DropSide::Top),
+        Action::SwapDown => store.swap_toward(DropSide::Bottom),
+        Action::ShellRight | Action::ShellBelow => {
+            let side = if a == Action::ShellRight { DropSide::Right } else { DropSide::Bottom };
+            let folder = store.focused_folder().clone();
+            let feature = focused_feature(store);
+            store.open_shell_toward(&folder, feature.as_deref(), side);
+        }
+        Action::Equalize => store.equalize_panes(),
+        Action::Maximize => store.toggle_zoom(),
+        Action::UndoPanes => {
+            store.undo_panes();
+        }
         Action::FindInPane => return Some(UiRequest::FindInPane { tab_id: focused }),
         Action::Search => {
             if store.prefs().sidebar_hidden || store.prefs().sidebar_view.is_some() {

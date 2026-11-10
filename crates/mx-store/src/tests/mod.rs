@@ -10,6 +10,7 @@ mod adopt;
 mod notices;
 mod pane_open;
 mod pane_ops;
+mod pane_nav;
 mod pane_undo;
 mod pin;
 mod plugin_footer;

@@ -107,3 +107,30 @@ fn biggest<'a>(rects: impl Iterator<Item = &'a PaneRect>) -> Option<&'a PaneRect
 pub fn largest(tree: &PaneNode, w: f64, h: f64, gap: f64) -> Option<PaneRect> {
     biggest(rects(tree, w, h, gap).iter()).cloned()
 }
+
+pub fn neighbour<'a>(rects: &'a [PaneRect], from: &str, side: DropSide) -> Option<&'a PaneRect> {
+    let r = rects.iter().find(|r| r.id == from)?;
+    let span = |p: &PaneRect| match side.axis() {
+        Axis::Row => (p.y, p.y + p.h),
+        Axis::Column => (p.x, p.x + p.w),
+    };
+    let distance = |c: &PaneRect| match side {
+        DropSide::Right => c.x - (r.x + r.w),
+        DropSide::Left => r.x - (c.x + c.w),
+        DropSide::Bottom => c.y - (r.y + r.h),
+        DropSide::Top => r.y - (c.y + c.h),
+        DropSide::Center => f64::NAN,
+    };
+    let (lo, hi) = span(r);
+    let overlap = |c: &PaneRect| {
+        let (a, b) = span(c);
+        b.min(hi) - a.max(lo)
+    };
+    rects
+        .iter()
+        .filter(|c| c.id != from && distance(c) >= -0.5 && overlap(c) > 0.5)
+        .min_by(|a, b| {
+            let key = |c: &PaneRect| (distance(c), -overlap(c), span(c).0);
+            key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+        })
+}

@@ -14,6 +14,7 @@ mod launchers;
 mod lifecycle;
 mod msg;
 mod notices;
+mod pane_nav;
 mod pane_undo;
 mod placement;
 mod plugins;

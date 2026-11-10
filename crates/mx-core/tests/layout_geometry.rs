@@ -85,3 +85,54 @@ fn the_largest_pane_is_the_first_of_equals() {
     let even = PaneNode::split(Axis::Row, vec![leaf("a"), leaf("b")], vec![0.5, 0.5]);
     assert_eq!(layout::largest(&even, 1000., 500., PANE_GAP).map(|r| r.id), Some("a".into()));
 }
+
+fn grid() -> Vec<PaneRect> {
+    let right = PaneNode::split(Axis::Column, vec![leaf("b"), leaf("c")], vec![0.5, 0.5]);
+    let tree = PaneNode::split(Axis::Row, vec![leaf("a"), right], vec![0.5, 0.5]);
+    layout::rects(&tree, 1008., 608., PANE_GAP)
+}
+
+fn next(rects: &[PaneRect], from: &str, side: DropSide) -> Option<String> {
+    layout::neighbour(rects, from, side).map(|r| r.id.clone())
+}
+
+#[test]
+fn the_neighbour_is_the_pane_touching_that_side() {
+    let g = grid();
+    assert_eq!(next(&g, "b", DropSide::Bottom).as_deref(), Some("c"));
+    assert_eq!(next(&g, "c", DropSide::Top).as_deref(), Some("b"));
+    assert_eq!(next(&g, "b", DropSide::Left).as_deref(), Some("a"));
+    assert_eq!(next(&g, "c", DropSide::Left).as_deref(), Some("a"));
+}
+
+#[test]
+fn a_tall_pane_goes_to_the_topmost_of_the_panes_beside_it() {
+    assert_eq!(next(&grid(), "a", DropSide::Right).as_deref(), Some("b"));
+}
+
+#[test]
+fn the_widest_overlap_wins_over_a_corner_touch() {
+    let rects = vec![
+        rect("a", 0., 0., 500., 300.),
+        rect("b", 508., 0., 500., 100.),
+        rect("c", 508., 108., 500., 192.),
+    ];
+    assert_eq!(next(&rects, "a", DropSide::Right).as_deref(), Some("c"));
+}
+
+#[test]
+fn there_is_no_neighbour_past_the_edge_or_for_an_unknown_pane() {
+    let g = grid();
+    assert_eq!(next(&g, "a", DropSide::Left), None);
+    assert_eq!(next(&g, "b", DropSide::Top), None);
+    assert_eq!(next(&g, "a", DropSide::Bottom), None);
+    assert_eq!(next(&g, "z", DropSide::Right), None);
+}
+
+#[test]
+fn a_pane_further_away_loses_to_the_adjacent_one() {
+    let tree = PaneNode::split(Axis::Row, vec![leaf("a"), leaf("b"), leaf("c")], vec![1., 1., 1.]);
+    let rects = layout::rects(&tree, 1016., 600., PANE_GAP);
+    assert_eq!(next(&rects, "a", DropSide::Right).as_deref(), Some("b"));
+    assert_eq!(next(&rects, "c", DropSide::Left).as_deref(), Some("b"));
+}
