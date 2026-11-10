@@ -1,7 +1,7 @@
 use gpui::{
-    AnyElement, App, ClickEvent, ClipboardItem, Entity, FontWeight, Hsla, InteractiveElement, IntoElement,
-    Modifiers, ParentElement, prelude::FluentBuilder, SharedString, StatefulInteractiveElement, Styled, WeakEntity,
-    Window, div, px,
+    AnyElement, App, ClickEvent, ClipboardItem, Div, Entity, FontWeight, Hsla, InteractiveElement, IntoElement,
+    Modifiers, ParentElement, prelude::FluentBuilder, SharedString, Stateful, StatefulInteractiveElement, Styled,
+    WeakEntity, Window, div, px, svg,
 };
 use mx_claude::{ChipLevel, ContextUsage};
 use mx_core::model::{ClaudeStatus, Tab, TabKind};
@@ -45,6 +45,7 @@ pub struct Header {
     lifted: bool,
     files: usize,
     files_open: bool,
+    zoomed: bool,
 }
 
 pub fn close_tooltip() -> String {
@@ -87,10 +88,11 @@ impl Header {
             dim: show_focus && !focused,
             tint: store.tint_of(&t.id).map(|tt| mx.tab_tint(tt)),
             folder_root: t.folder_root.clone(),
-            grab: store.pane_count() >= 2,
+            grab: store.pane_count() >= 2 && store.zoomed().is_none(),
             lifted: false,
             files: t.hooks.touched.len(),
             files_open: false,
+            zoomed: store.zoomed() == Some(t.id.as_str()),
         }
     }
 
@@ -164,6 +166,9 @@ impl Header {
         if self.hibernated {
             buttons.push(self.button(mx, ("wake", Icon::PlayArrow, faint), "Retomar a conversa", host, |s, id| s.wake(id)));
         }
+        if self.zoomed {
+            buttons.push(restore_button(mx, &self.id, host));
+        }
         if self.agent {
             buttons.push(self.agent_button(mx, host));
         }
@@ -226,7 +231,8 @@ impl Header {
             .border_b(px(if self.tint.is_some() { 3. } else { 1. }))
             .border_color(self.tint.unwrap_or(mx.border));
         let el = if self.grab { pane_grab(el, drag, self.tint, host.clone(), self.lifted) } else { el };
-        el.child(lead)
+        zoom_on_double_click(el, &self.id, host)
+            .child(lead)
             .child(div().w(px(9.)))
             .child(
                 div()
@@ -242,6 +248,39 @@ impl Header {
             .child(div().ml(px(10.)).flex_1().min_w_0().flex().opacity(fade).child(chips))
             .child(div().flex_none().flex().items_center().gap(px(2.)).opacity(fade).children(buttons))
     }
+}
+
+pub const RESTORE_TIP: &str = "Voltar à divisão · Shift+Esc";
+
+pub fn restore_button(mx: &Mx, id: &str, host: &Entity<StoreHost>) -> AnyElement {
+    let (host, tab) = (host.clone(), id.to_owned());
+    div()
+        .id(SharedString::from(format!("pane-restore:{id}")))
+        .flex_none()
+        .size(px(26.))
+        .rounded(px(6.))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .bg(mx.accent.opacity(0.12))
+        .hover(|s| s.bg(mx.accent.opacity(0.2)))
+        .tooltip(tip(RESTORE_TIP))
+        .on_click(move |_, _, cx: &mut App| {
+            cx.stop_propagation();
+            update_store(&host, cx, |s| s.toggle_zoom_of(&tab));
+        })
+        .child(svg().path("glyphs/window_restore.svg").size(px(15.)).text_color(mx.accent))
+        .into_any_element()
+}
+
+pub fn zoom_on_double_click(el: Stateful<Div>, id: &str, host: &Entity<StoreHost>) -> Stateful<Div> {
+    let (host, tab) = (host.clone(), id.to_owned());
+    el.on_click(move |ev, _, cx: &mut App| {
+        if ev.click_count() == 2 {
+            update_store(&host, cx, |s| s.toggle_zoom_of(&tab));
+        }
+    })
 }
 
 fn dotted(mx: &Mx, items: Vec<AnyElement>) -> Vec<AnyElement> {

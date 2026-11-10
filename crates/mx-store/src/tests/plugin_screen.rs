@@ -1,4 +1,5 @@
 use mx_core::layout::DropSide;
+use crate::PaneDrop;
 use mx_core::model::TabKind;
 use mx_plugins::Plugins;
 use mx_plugins::rpc::ViewOpen;
@@ -36,7 +37,7 @@ fn desk(screen: Value) -> Rig {
     rig.panel("left");
     rig.panel("right");
     rig.s.select("left");
-    rig.s.drop_tab("right", "left", DropSide::Right);
+    rig.s.drop_tab("right", "left", PaneDrop::Split(DropSide::Right));
     rig.s.focus_pane("right");
     rig
 }
@@ -227,4 +228,16 @@ fn clicking_the_current_icon_hides_the_sidebar() {
     rig.s.show_sidebar_view(Some("wiboor"));
     assert!(!rig.s.prefs().sidebar_hidden);
     assert_eq!(rig.s.screen(), Some("wiboor"));
+}
+
+#[test]
+fn switching_screens_ends_the_zoom_and_coming_back_does_not_restore_it() {
+    let mut rig = desk(json!(true));
+    rig.s.toggle_zoom_of("right");
+    assert_eq!(rig.s.zoomed(), Some("right"));
+    rig.s.show_sidebar_view(Some("wiboor"));
+    assert_eq!(rig.s.zoomed(), None);
+    rig.s.show_sidebar_view(None);
+    assert_eq!(panes(&rig), ["left", "right"]);
+    assert_eq!(rig.s.zoomed(), None);
 }

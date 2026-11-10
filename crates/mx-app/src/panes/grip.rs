@@ -62,7 +62,7 @@ pub fn grip(
         .on_drag(drag, |_, _, _, cx| cx.new(|_| Nothing))
         .on_click(move |ev, _, cx: &mut App| {
             if ev.click_count() == 2 {
-                equalize(&host, &host_path, gutter, cx);
+                update_store(&host, cx, |s| s.equalize_split(&host_path));
             }
         })
         .child(bar);
@@ -71,21 +71,6 @@ pub fn grip(
         Axis::Column => el.h(px(GAP)).w_full().cursor_row_resize(),
     }
     .into_any_element()
-}
-
-fn equalize(host: &Entity<StoreHost>, path: &[usize], gutter: usize, cx: &mut App) {
-    update_store(host, cx, |s| {
-        let Some(split) = s.panes_mut().and_then(|p| p.split_at_mut(path)) else {
-            return;
-        };
-        if gutter + 1 >= split.weights.len() {
-            return;
-        }
-        let even = (split.weights[gutter] + split.weights[gutter + 1]) / 2.;
-        split.weights[gutter] = even;
-        split.weights[gutter + 1] = even;
-        s.save();
-    });
 }
 
 pub fn on_move(host: &Entity<StoreHost>, path: &[usize], axis: Axis, ev: &DragMoveEvent<GripDrag>, cx: &mut Context<PaneArea>) {

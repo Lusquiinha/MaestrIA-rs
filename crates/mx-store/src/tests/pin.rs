@@ -2,7 +2,7 @@ use mx_core::layout::{Axis, DropSide, PaneNode};
 use mx_core::model::Doc;
 
 use super::Rig;
-use crate::DocPlace;
+use crate::{DocPlace, PaneDrop};
 
 fn rig(ids: &[&str]) -> Rig {
     let mut rig = Rig::new();
@@ -65,7 +65,7 @@ fn n5_dropping_onto_a_pinned_pane_takes_its_pin() {
     let mut rig = rig(&["fixo", "solto", "tres"]);
     rig.s.set_panes(Some(row("fixo", "solto")), Some("fixo"));
     pin(&mut rig, "fixo");
-    rig.s.drop_tab("tres", "fixo", DropSide::Center);
+    rig.s.drop_tab("tres", "fixo", PaneDrop::Replace);
     assert_eq!(rig.s.order(), ["tres", "solto"]);
     assert!(rig.t("tres").pinned);
     assert!(!rig.t("fixo").pinned);
@@ -105,7 +105,7 @@ fn n8_a_changed_shape_forgets_the_hole() {
     rig.s.set_panes(Some(row("solto", "a")), Some("a"));
     pin(&mut rig, "a");
     rig.s.dismiss("solto");
-    rig.s.drop_tab("b", "a", DropSide::Bottom);
+    rig.s.drop_tab("b", "a", PaneDrop::Split(DropSide::Bottom));
     rig.s.toggle_pin("b");
     rig.s.focus_pane("a");
     rig.s.select("outro");
