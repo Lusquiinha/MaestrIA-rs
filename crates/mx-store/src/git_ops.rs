@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use mx_core::model::WorktreeInfo;
+use mx_core::model::{Folder, WorktreeInfo};
 use mx_sys::code_workspace::looks_like_one;
 use mx_sys::git::GitOutcome;
 
@@ -119,6 +119,10 @@ impl Store {
             self.answer_created(task.reply, None);
             return;
         };
+        self.muting_undo(|s| s.open_task(task, folder, outcome));
+    }
+
+    fn open_task(&mut self, task: NewTask, folder: Folder, outcome: GitOutcome) {
         if let Some(setup) = task.setup_command.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             let id = self.open_shell(&folder, Some(&outcome.path), Some(setup), task.feature.as_deref(), None);
             if let Some(t) = self.tab_mut(&id) {

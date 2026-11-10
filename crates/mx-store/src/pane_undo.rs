@@ -2,6 +2,7 @@ use mx_core::layout::{self, PaneNode};
 
 use crate::changes::Areas;
 use crate::store::Store;
+use crate::timers::TimerKey;
 
 pub const NOTHING_TO_UNDO: &str = "Nada pra desfazer nos painéis";
 
@@ -33,7 +34,8 @@ impl Store {
     }
 
     pub(crate) fn offer_undo(&mut self, before: Snapshot, gone: &str) {
-        if self.undo.muted || self.restoring || !self.has_tab(gone) || self.is_open(gone) {
+        let sticky = self.bell.banner.is_some() && !self.timers.is_set(&TimerKey::Banner);
+        if self.undo.muted || self.restoring || sticky || !self.has_tab(gone) || self.is_open(gone) {
             return;
         }
         let title = self.title_of(gone);

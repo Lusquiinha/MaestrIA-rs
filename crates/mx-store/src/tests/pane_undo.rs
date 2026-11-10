@@ -150,3 +150,13 @@ fn cycling_sessions_does_not_offer_undo() {
     assert_eq!(rig.s.order(), ["a", "c"]);
     assert_eq!(rig.s.banner(), None);
 }
+
+#[test]
+fn a_sticky_banner_is_not_covered_by_the_undo() {
+    let mut rig = rig(&["a", "b", "c"]);
+    rig.s.set_panes(Some(row(&["a", "b"])), Some("b"));
+    rig.s.show_banner_sticky("importante");
+    rig.s.select("c");
+    assert_eq!(rig.s.banner(), Some("importante"));
+    assert!(!rig.s.can_undo_panes());
+}
