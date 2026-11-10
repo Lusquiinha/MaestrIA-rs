@@ -136,3 +136,55 @@ fn a_pane_further_away_loses_to_the_adjacent_one() {
     assert_eq!(next(&rects, "a", DropSide::Right).as_deref(), Some("b"));
     assert_eq!(next(&rects, "c", DropSide::Left).as_deref(), Some("b"));
 }
+
+fn grip(path: &[usize], gutter: usize) -> layout::GripRef {
+    layout::GripRef { path: path.to_vec(), gutter }
+}
+
+fn half(axis: Axis, a: PaneNode, b: PaneNode) -> PaneNode {
+    PaneNode::split(axis, vec![a, b], vec![0.5, 0.5])
+}
+
+#[test]
+fn a_single_split_has_no_junction() {
+    let tree = half(Axis::Row, leaf("a"), leaf("b"));
+    assert!(layout::junctions(&tree, 1008., 600., PANE_GAP).is_empty());
+    assert!(layout::junctions(&leaf("a"), 1008., 600., PANE_GAP).is_empty());
+}
+
+#[test]
+fn a_t_junction_joins_the_parent_and_the_child_grip() {
+    let tree = half(Axis::Row, leaf("a"), half(Axis::Column, leaf("b"), leaf("c")));
+    let j = layout::junctions(&tree, 1008., 608., PANE_GAP);
+    assert_eq!(j.len(), 1);
+    assert_eq!((j[0].x, j[0].y), (504., 304.));
+    assert_eq!(j[0].rows, [grip(&[], 0)]);
+    assert_eq!(j[0].columns, [grip(&[1], 0)]);
+}
+
+#[test]
+fn an_aligned_two_by_two_grid_meets_in_one_cross() {
+    let tree = half(Axis::Row, half(Axis::Column, leaf("a"), leaf("b")), half(Axis::Column, leaf("c"), leaf("d")));
+    let j = layout::junctions(&tree, 1008., 608., PANE_GAP);
+    assert_eq!(j.len(), 1);
+    assert_eq!((j[0].x, j[0].y), (504., 304.));
+    assert_eq!(j[0].rows, [grip(&[], 0)]);
+    assert_eq!(j[0].columns, [grip(&[0], 0), grip(&[1], 0)]);
+}
+
+#[test]
+fn an_offset_two_by_two_grid_has_two_t_junctions() {
+    let col = |a, b, top: f64| PaneNode::split(Axis::Column, vec![leaf(a), leaf(b)], vec![top, 1. - top]);
+    let tree = half(Axis::Row, col("a", "b", 0.25), col("c", "d", 0.75));
+    let j = layout::junctions(&tree, 1008., 608., PANE_GAP);
+    assert_eq!(j.len(), 2);
+    assert_eq!((j[0].x, j[0].y, j[0].columns.clone()), (504., 154., vec![grip(&[0], 0)]));
+    assert_eq!((j[1].x, j[1].y, j[1].columns.clone()), (504., 454., vec![grip(&[1], 0)]));
+}
+
+#[test]
+fn the_area_of_a_nested_split_leaves_out_the_gap() {
+    let tree = half(Axis::Row, leaf("a"), half(Axis::Column, leaf("b"), leaf("c")));
+    assert_eq!(layout::split_area(&tree, &[1], 1008., 608., PANE_GAP), Some(layout::Area { x: 508., y: 0., w: 500., h: 608. }));
+    assert_eq!(layout::split_area(&tree, &[0], 1008., 608., PANE_GAP), None);
+}

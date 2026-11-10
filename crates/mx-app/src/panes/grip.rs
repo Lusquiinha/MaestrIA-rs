@@ -1,8 +1,8 @@
 use gpui::{
-    AnyElement, App, AppContext, Context, DragMoveEvent, Entity, InteractiveElement, IntoElement,
+    AnyElement, App, AppContext, Context, CursorStyle, DragMoveEvent, Entity, InteractiveElement, IntoElement,
     ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
-use mx_core::layout::Axis;
+use mx_core::layout::{self, Axis, GripRef, Junction};
 
 use crate::app::host::{StoreHost, update_store};
 use crate::app::theme::{GAP, Mx};
@@ -13,6 +13,14 @@ pub struct GripDrag {
     pub path: Vec<usize>,
     pub gutter: usize,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CornerDrag {
+    pub rows: Vec<GripRef>,
+    pub columns: Vec<GripRef>,
+}
+
+pub const CORNER: f32 = 12.;
 
 struct Nothing;
 
@@ -96,6 +104,56 @@ pub fn on_move(host: &Entity<StoreHost>, path: &[usize], axis: Axis, ev: &DragMo
         };
         if let Some((delta, total)) = pointer_delta(&weights, gutter, extent, pointer) {
             s.resize_split(path, gutter as isize, delta, total);
+        }
+    });
+}
+
+pub fn corner(mx: &Mx, host: &Entity<StoreHost>, j: &Junction, dragging: bool) -> AnyElement {
+    let drag = CornerDrag { rows: j.rows.clone(), columns: j.columns.clone() };
+    let grab = host.clone();
+    let dot = div().size(px(6.)).rounded(px(3.));
+    let dot = if dragging { dot.bg(mx.accent) } else { dot };
+    let group = SharedString::from(format!("corner:{:?}:{:?}", j.rows, j.columns));
+    let half = CORNER / 2.;
+    div()
+        .id(SharedString::from(format!("corner-el:{:?}:{:?}", j.rows, j.columns)))
+        .group(group.clone())
+        .absolute()
+        .left(px(j.x as f32 - half))
+        .top(px(j.y as f32 - half))
+        .size(px(CORNER))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor(CursorStyle::ResizeUpLeftDownRight)
+        .on_drag(drag, move |_, _, _, cx| {
+            update_store(&grab, cx, |s| s.begin_resize());
+            cx.new(|_| Nothing)
+        })
+        .child(dot.group_hover(group, |s| s.bg(mx.fg_faint)))
+        .into_any_element()
+}
+
+pub fn on_corner_move(host: &Entity<StoreHost>, ev: &DragMoveEvent<CornerDrag>, cx: &mut Context<PaneArea>) {
+    let drag = ev.drag(cx).clone();
+    let b = ev.bounds;
+    let (w, h) = (f64::from(f32::from(b.size.width)), f64::from(f32::from(b.size.height)));
+    let at = ev.event.position - b.origin;
+    let (px, py) = (f64::from(f32::from(at.x)), f64::from(f32::from(at.y)));
+    update_store(host, cx, |s| {
+        let moves = drag.rows.iter().map(|g| (g, Axis::Row, px)).chain(drag.columns.iter().map(|g| (g, Axis::Column, py)));
+        for (g, axis, pointer) in moves {
+            let Some(tree) = s.panes() else { return };
+            let (Some(area), Some(split)) = (layout::split_area(tree, &g.path, w, h, GAP as f64), tree.split_at(&g.path)) else {
+                continue;
+            };
+            let (origin, extent) = match axis {
+                Axis::Row => (area.x, area.w),
+                Axis::Column => (area.y, area.h),
+            };
+            if let Some((delta, total)) = pointer_delta(&split.weights, g.gutter, extent, pointer - origin) {
+                s.resize_split(&g.path, g.gutter as isize, delta, total);
+            }
         }
     });
 }

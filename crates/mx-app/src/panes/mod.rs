@@ -19,12 +19,12 @@ use gpui::{
     Point, Render, SharedString, StyleRefinement, Styled, Subscription, Window, div, prelude::FluentBuilder, px, relative,
 };
 use mx_store::{Areas, PaneDrop};
-use mx_core::layout::{Axis, DropSide, PaneNode};
+use mx_core::layout::{self, Axis, DropSide, PaneNode};
 use mx_core::model::TabKind;
 
 use crate::app::drag::DraggedTab;
 use crate::app::host::{StoreChanged, StoreHost, update_store};
-use crate::app::theme::{Mx, RADIUS};
+use crate::app::theme::{GAP, Mx, RADIUS};
 use crate::chrome::style::{rest_border, seat_shadow};
 use crate::plugin_ui::PluginLayer;
 use crate::plugin_ui::surface::SurfaceEnv;
@@ -46,6 +46,7 @@ pub struct PaneArea {
     mods: Modifiers,
     lifted: Option<String>,
     resizing: Option<grip::GripDrag>,
+    cornering: Option<grip::CornerDrag>,
     focused: Option<String>,
     focused_handle: Option<FocusHandle>,
     covered: bool,
@@ -70,6 +71,7 @@ impl PaneArea {
             mods: Modifiers::default(),
             lifted: None,
             resizing: None,
+            cornering: None,
             focused: None,
             focused_handle: None,
             covered: false,
@@ -413,6 +415,19 @@ impl PaneArea {
             .into_any_element()
     }
 
+    fn corner_layer(&self, tree: &PaneNode, mx: &Mx, cx: &Context<Self>) -> Option<AnyElement> {
+        let (w, h) = self.host.read(cx).store.pane_area()?;
+        let found = layout::junctions(tree, w, h, f64::from(GAP));
+        if found.is_empty() {
+            return None;
+        }
+        let corners = found.iter().map(|j| {
+            let dragging = self.cornering.as_ref().is_some_and(|d| d.rows == j.rows && d.columns == j.columns);
+            grip::corner(mx, &self.host, j, dragging)
+        });
+        Some(div().absolute().inset_0().children(corners).into_any_element())
+    }
+
     fn node(&self, node: &PaneNode, path: Vec<usize>, show_focus: bool, mx: &Mx, cx: &Context<Self>) -> AnyElement {
         let split = match node {
             PaneNode::Leaf(id) => return self.leaf(id, show_focus, mx, cx),
@@ -516,6 +531,7 @@ impl Render for PaneArea {
         self.sync_changes(window, cx);
         self.sync_headers(&ids, show_focus, &mx, window, cx);
         let edges = tree.as_ref().filter(|_| cx.has_active_drag()).map(|tree| self.edge_layer(tree, &mx, cx));
+        let corners = tree.as_ref().filter(|_| zoomed.is_none()).and_then(|tree| self.corner_layer(tree, &mx, cx));
         let body = match (tree, screen) {
             (Some(tree), _) => match zoomed.as_deref() {
                 Some(z) => self.leaf(z, false, &mx, cx),
@@ -531,12 +547,21 @@ impl Render for PaneArea {
                 if this.hint.take().is_some()
                     | this.edge.take().is_some()
                     | this.resizing.take().is_some()
+                    | this.cornering.take().is_some()
                     | this.lifted.take().is_some()
                 {
                     cx.notify();
                 }
             }))
             .on_drag_move(cx.listener(|this, ev: &DragMoveEvent<DraggedTab>, _, cx| this.on_area_drag_move(ev, cx)))
+            .on_drag_move(cx.listener(|this, ev: &DragMoveEvent<grip::CornerDrag>, _, cx| {
+                if this.cornering.is_none() {
+                    this.cornering = Some(ev.drag(cx).clone());
+                    cx.notify();
+                }
+                let host = this.host.clone();
+                grip::on_corner_move(&host, ev, cx)
+            }))
             .on_modifiers_changed(cx.listener(|this, ev: &ModifiersChangedEvent, _, cx| {
                 if cx.has_active_drag() {
                     this.track_mods(ev.modifiers, cx);
@@ -554,6 +579,7 @@ impl Render for PaneArea {
                 }
             }))
             .child(body)
+            .children(corners)
             .children(edges)
             .children(self.layer.clone())
     }

@@ -100,6 +100,14 @@ impl PaneNode {
         }
     }
 
+    pub fn split_at(&self, path: &[usize]) -> Option<&PaneSplit> {
+        let mut node = self;
+        for &i in path {
+            node = node.as_split()?.children.get(i)?;
+        }
+        node.as_split()
+    }
+
     pub fn split_at_mut(&mut self, path: &[usize]) -> Option<&mut PaneSplit> {
         let mut node = self;
         for &i in path {
