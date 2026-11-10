@@ -8,6 +8,14 @@ use crate::changes::Areas;
 use crate::store::Store;
 use crate::timers::{REVEAL_LIFE, TimerKey};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaneDrop {
+    Replace,
+    Swap,
+    Split(DropSide),
+    Edge(DropSide),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reveal {
     pub tab_id: String,
@@ -145,7 +153,11 @@ impl Store {
         self.mark(Areas::PANES);
     }
 
-    pub fn drop_tab(&mut self, id: &str, target: &str, side: DropSide) {
+    pub fn drop_tab(&mut self, id: &str, target: &str, drop: PaneDrop) {
+        if let PaneDrop::Edge(side) = drop {
+            self.drop_at_edge(id, side);
+            return;
+        }
         if id == target || !self.is_open(target) {
             self.focus_pane(id);
             return;
@@ -157,18 +169,46 @@ impl Store {
             self.select(id);
             return;
         }
-        self.drop_from_tree(id);
-        if side == DropSide::Center {
-            let pin = self.is_pinned(target);
-            if pin && let Some(t) = self.tab_mut(id) {
-                t.pinned = true;
+        let swapped = drop == PaneDrop::Swap && self.panes.as_mut().is_some_and(|p| p.swap_leaves(target, id));
+        if !swapped {
+            self.drop_from_tree(id);
+            match drop {
+                PaneDrop::Split(side) if side != DropSide::Center => {
+                    self.panes = self.panes.take().map(|p| p.insert(id, target, side));
+                }
+                _ => {
+                    let pin = self.is_pinned(target);
+                    if pin && let Some(t) = self.tab_mut(id) {
+                        t.pinned = true;
+                    }
+                    if let Some(p) = self.panes.as_mut() {
+                        p.swap(target, id);
+                    }
+                }
             }
-            if let Some(p) = self.panes.as_mut() {
-                p.swap(target, id);
-            }
-        } else {
-            self.panes = self.panes.take().map(|p| p.insert(id, target, side));
         }
+        self.focused = Some(id.to_owned());
+        self.save();
+        self.mark(Areas::PANES | Areas::SIDEBAR);
+    }
+
+    pub fn drop_at_edge(&mut self, id: &str, side: DropSide) {
+        if !self.has_tab(id) || side == DropSide::Center {
+            return;
+        }
+        if self.screen_of_id(id).as_deref() != self.screen() {
+            self.select(id);
+            return;
+        }
+        if self.is_open(id) && self.pane_count() < 2 {
+            self.focus_pane(id);
+            return;
+        }
+        self.drop_from_tree(id);
+        self.panes = Some(match self.panes.take() {
+            Some(p) => p.edge(id, side),
+            None => PaneNode::leaf(id),
+        });
         self.focused = Some(id.to_owned());
         self.save();
         self.mark(Areas::PANES | Areas::SIDEBAR);
@@ -266,6 +306,21 @@ impl Store {
             return;
         };
         split.resize(gutter, delta, total);
+        self.save();
+        self.mark(Areas::PANES);
+    }
+
+    pub fn equalize_panes(&mut self) {
+        let Some(tree) = self.panes.as_mut() else { return };
+        tree.equalize();
+        self.save();
+        self.mark(Areas::PANES);
+    }
+
+    pub fn equalize_split(&mut self, path: &[usize]) {
+        if !self.panes.as_mut().is_some_and(|p| p.equalize_at(path)) {
+            return;
+        }
         self.save();
         self.mark(Areas::PANES);
     }

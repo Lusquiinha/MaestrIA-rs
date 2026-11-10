@@ -32,6 +32,7 @@ pub mod testing;
 mod timers;
 mod tint;
 mod workspaces;
+mod zoom;
 
 #[cfg(test)]
 mod tests;
@@ -52,7 +53,7 @@ pub use sink::StoreSink;
 pub use store::Store;
 pub use suggestions::Tracking;
 pub use tabs_open::{ClaudeSpec, HIBERNATED_AT_BIRTH};
-pub use tabs_ops::Reveal;
+pub use tabs_ops::{PaneDrop, Reveal};
 pub use timers::TimerKey;
 pub use tint::{GROUP_TINTS, TabTint};
 pub use workspaces::{EmptyName, RowPlace};

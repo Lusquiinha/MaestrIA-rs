@@ -37,6 +37,7 @@ pub struct ViewHeader {
     dim: bool,
     grab: bool,
     lifted: bool,
+    zoomed: bool,
 }
 
 impl ViewHeader {
@@ -58,8 +59,9 @@ impl ViewHeader {
             screen,
             pinned: (t.pinned || store.pane_count() > 1).then_some(t.pinned),
             dim: show_focus && !focused,
-            grab: store.pane_count() >= 2,
+            grab: store.pane_count() >= 2 && store.zoomed().is_none(),
             lifted: false,
+            zoomed: store.zoomed() == Some(id),
         })
     }
 
@@ -108,6 +110,9 @@ impl ViewHeader {
             Some(false) => buttons.push(self.store_button(mx, host, "return", named_icon("undo_rounded", 16., faint), return_tip(&self.plugin_name), |s, id| s.return_view(id))),
             None => {}
         }
+        if self.zoomed {
+            buttons.push(crate::panes::header::restore_button(mx, &self.id, host));
+        }
         if let Some(pinned) = self.pinned {
             let (glyph, color) = if pinned { (Icon::PushPin, mx.accent) } else { (Icon::PushPinOutlined, faint) };
             let tooltip = if pinned { "Solto" } else { "Prender" };
@@ -132,7 +137,8 @@ impl ViewHeader {
             .border_b_1()
             .border_color(mx.border);
         let el = if self.grab { pane_grab(el, drag, None, host.clone(), self.lifted) } else { el };
-        el.child(lead)
+        crate::panes::header::zoom_on_double_click(el, &self.id, host)
+            .child(lead)
             .child(div().w(px(9.)))
             .child(title_line(mx, &self.title))
             .children(crate::panes::header::key_hint(mx, self.hotkey.clone()))

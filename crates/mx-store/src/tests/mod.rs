@@ -8,6 +8,7 @@ mod history;
 mod layout;
 mod adopt;
 mod notices;
+mod pane_ops;
 mod pin;
 mod plugin_footer;
 mod plugin_live;

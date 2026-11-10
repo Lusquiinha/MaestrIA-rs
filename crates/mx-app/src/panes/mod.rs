@@ -14,11 +14,11 @@ mod view_header;
 use std::collections::{HashMap, HashSet};
 
 use gpui::{
-    AnyElement, AnyView, App, AppContext, Context, DragMoveEvent, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, MouseButton, ParentElement, Render, SharedString, StyleRefinement, Styled,
-    Subscription, Window, div, prelude::FluentBuilder, px, relative,
+    AnyElement, AnyView, App, AppContext, Bounds, Context, DragMoveEvent, Entity, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, KeyDownEvent, Modifiers, ModifiersChangedEvent, MouseButton, ParentElement, Pixels,
+    Point, Render, SharedString, StyleRefinement, Styled, Subscription, Window, div, prelude::FluentBuilder, px, relative,
 };
-use mx_store::Areas;
+use mx_store::{Areas, PaneDrop};
 use mx_core::layout::{Axis, DropSide, PaneNode};
 use mx_core::model::TabKind;
 
@@ -41,6 +41,9 @@ pub struct PaneArea {
     host: Entity<StoreHost>,
     terminals: Terminals,
     hint: Option<(String, DropSide)>,
+    edge: Option<DropSide>,
+    area: Option<Bounds<Pixels>>,
+    mods: Modifiers,
     lifted: Option<String>,
     resizing: Option<grip::GripDrag>,
     focused: Option<String>,
@@ -62,6 +65,9 @@ impl PaneArea {
             host,
             terminals: Terminals::default(),
             hint: None,
+            edge: None,
+            area: None,
+            mods: Modifiers::default(),
             lifted: None,
             resizing: None,
             focused: None,
@@ -175,7 +181,45 @@ impl PaneArea {
         }
     }
 
+    fn track_mods(&mut self, mods: Modifiers, cx: &mut Context<Self>) {
+        if self.mods != mods {
+            self.mods = mods;
+            cx.notify();
+        }
+    }
+
+    fn in_edge(&self, p: Point<Pixels>) -> bool {
+        self.area.is_some_and(|a| {
+            let at = p - a.origin;
+            drop::edge_at(f32::from(at.x), f32::from(at.y), f32::from(a.size.width), f32::from(a.size.height)).is_some()
+        })
+    }
+
+    fn on_area_drag_move(&mut self, ev: &DragMoveEvent<DraggedTab>, cx: &mut Context<Self>) {
+        self.track_mods(ev.event.modifiers, cx);
+        let b = ev.bounds;
+        if self.area != Some(b) {
+            self.area = Some(b);
+            cx.notify();
+        }
+        let store = &self.host.read(cx).store;
+        let dragged = &ev.drag(cx).id;
+        let movable = store.panes().is_some() && !(store.is_open(dragged) && store.pane_count() < 2);
+        let at = ev.event.position - b.origin;
+        let edge = movable
+            .then(|| drop::edge_at(f32::from(at.x), f32::from(at.y), f32::from(b.size.width), f32::from(b.size.height)))
+            .flatten();
+        if edge != self.edge {
+            self.edge = edge;
+            if edge.is_some() {
+                self.hint = None;
+            }
+            cx.notify();
+        }
+    }
+
     fn on_drag_move(&mut self, id: &str, ev: &DragMoveEvent<DraggedTab>, cx: &mut Context<Self>) {
+        self.track_mods(ev.event.modifiers, cx);
         let dragged = ev.drag(cx).id.clone();
         if self.lifted.as_deref() != Some(dragged.as_str()) {
             let lifted = self.host.read(cx).store.is_open(&dragged).then_some(dragged.clone());
@@ -186,7 +230,7 @@ impl PaneArea {
         }
         let b = ev.bounds;
         let p = ev.event.position;
-        let inside = b.contains(&p);
+        let inside = b.contains(&p) && !self.in_edge(p);
         let next = if inside && dragged == id {
             None
         } else if inside {
@@ -262,10 +306,9 @@ impl PaneArea {
         });
         let width = if show_focus && focused { 2. } else { 1. };
         let hint = self
-            .hint
-            .as_ref()
-            .filter(|(h, _)| h == id && cx.has_active_drag())
-            .map(|(_, side)| *side);
+            .pane_drop()
+            .filter(|(h, _, d)| *h == id && !matches!(d, PaneDrop::Edge(_)) && cx.has_active_drag())
+            .map(|(_, side, d)| (side, drop::label(d)));
         let focus_host = self.host.clone();
         let drop_host = self.host.clone();
         let (move_id, focus_id, drop_id) = (id.to_owned(), id.to_owned(), id.to_owned());
@@ -286,14 +329,18 @@ impl PaneArea {
             .on_drag_move(cx.listener(move |this, ev: &DragMoveEvent<DraggedTab>, _, cx| {
                 this.on_drag_move(&move_id, ev, cx)
             }))
-            .on_drop(cx.listener(move |this, d: &DraggedTab, _, cx| {
+            .on_drop(cx.listener(move |this, d: &DraggedTab, window, cx| {
                 this.lifted = None;
+                this.edge = None;
                 let side = this
                     .hint
                     .take()
                     .filter(|(h, _)| *h == drop_id)
                     .map_or(DropSide::Center, |(_, s)| s);
-                update_store(&drop_host, cx, |s| s.drop_tab(&d.id, &drop_id, side));
+                let mods = window.modifiers();
+                let shown = this.host.read(cx).store.is_open(&d.id);
+                let intent = drop::intent(side, mods.alt, mods.shift, shown);
+                update_store(&drop_host, cx, |s| s.drop_tab(&d.id, &drop_id, intent));
             }))
             .children(top)
             .child(
@@ -313,7 +360,56 @@ impl PaneArea {
                     .border(px(width))
                     .border_color(ring),
             )
-            .when_some(hint, |d, side| d.child(drop::hint(mx, side)))
+            .when_some(hint, |d, (side, label)| d.child(drop::overlay(mx, side, 0.5, label)))
+            .into_any_element()
+    }
+
+    fn pane_drop(&self) -> Option<(&str, DropSide, PaneDrop)> {
+        let (id, side) = self.hint.as_ref()?;
+        Some((id.as_str(), *side, drop::intent(*side, self.mods.alt, self.mods.shift, self.lifted.is_some())))
+    }
+
+    fn leave_zoom(&mut self, cx: &mut Context<Self>) {
+        if self.host.read(cx).store.zoomed().is_none() || self.overlay_open(cx) {
+            return;
+        }
+        update_store(&self.host, cx, |s| {
+            s.unzoom();
+        });
+        cx.stop_propagation();
+    }
+
+    fn edge_layer(&self, tree: &PaneNode, mx: &Mx, cx: &Context<Self>) -> AnyElement {
+        let shown = self.edge.or_else(|| match self.pane_drop() {
+            Some((_, _, PaneDrop::Edge(side))) => Some(side),
+            _ => None,
+        });
+        let strips = [DropSide::Left, DropSide::Right, DropSide::Top, DropSide::Bottom].map(|side| {
+            let host = self.host.clone();
+            let strip = div()
+                .id(SharedString::from(format!("pane-edge:{side:?}")))
+                .absolute()
+                .on_drop(cx.listener(move |this, d: &DraggedTab, _, cx| {
+                    this.lifted = None;
+                    this.hint = None;
+                    this.edge = None;
+                    update_store(&host, cx, |s| s.drop_at_edge(&d.id, side));
+                }));
+            let edge = px(drop::EDGE);
+            match side {
+                DropSide::Left => strip.left_0().top_0().h_full().w(edge),
+                DropSide::Right => strip.right_0().top_0().h_full().w(edge),
+                DropSide::Top => strip.left_0().top_0().w_full().h(edge),
+                _ => strip.left_0().bottom_0().w_full().h(edge),
+            }
+        });
+        div()
+            .absolute()
+            .inset_0()
+            .when_some(shown, |d, side| {
+                d.child(drop::overlay(mx, side, drop::edge_share(tree, side), drop::label(PaneDrop::Edge(side))))
+            })
+            .children(strips)
             .into_any_element()
     }
 
@@ -414,23 +510,51 @@ impl Render for PaneArea {
         let store = &self.host.read(cx).store;
         let tree = store.panes().cloned();
         let screen = store.screen().map(str::to_owned);
-        let show_focus = store.pane_count() > 1 && window.is_window_active();
+        let zoomed = store.zoomed().map(str::to_owned);
+        let show_focus = zoomed.is_none() && store.pane_count() > 1 && window.is_window_active();
         let ids = tree.as_ref().map(PaneNode::order).unwrap_or_default();
         self.sync_changes(window, cx);
         self.sync_headers(&ids, show_focus, &mx, window, cx);
+        let edges = tree.as_ref().filter(|_| cx.has_active_drag()).map(|tree| self.edge_layer(tree, &mx, cx));
         let body = match (tree, screen) {
-            (Some(tree), _) => self.node(&tree, Vec::new(), show_focus, &mx, cx),
+            (Some(tree), _) => match zoomed.as_deref() {
+                Some(z) => self.leaf(z, false, &mx, cx),
+                None => self.node(&tree, Vec::new(), show_focus, &mx, cx),
+            },
             (None, Some(plugin)) => empty::empty_screen(&mx, &self.host, &plugin, cx).into_any_element(),
             (None, None) => empty::empty_pane(&self.host).into_any_element(),
         };
         div()
+            .relative()
             .size_full()
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                if this.hint.take().is_some() | this.resizing.take().is_some() | this.lifted.take().is_some() {
+                if this.hint.take().is_some()
+                    | this.edge.take().is_some()
+                    | this.resizing.take().is_some()
+                    | this.lifted.take().is_some()
+                {
                     cx.notify();
                 }
             }))
+            .on_drag_move(cx.listener(|this, ev: &DragMoveEvent<DraggedTab>, _, cx| this.on_area_drag_move(ev, cx)))
+            .on_modifiers_changed(cx.listener(|this, ev: &ModifiersChangedEvent, _, cx| {
+                if cx.has_active_drag() {
+                    this.track_mods(ev.modifiers, cx);
+                }
+            }))
+            .capture_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
+                let m = ev.keystroke.modifiers;
+                if ev.keystroke.key == "escape" && m.shift && !(m.control || m.alt || m.platform) {
+                    this.leave_zoom(cx);
+                }
+            }))
+            .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _, cx| {
+                if ev.keystroke.key == "escape" && !ev.keystroke.modifiers.modified() {
+                    this.leave_zoom(cx);
+                }
+            }))
             .child(body)
+            .children(edges)
             .children(self.layer.clone())
     }
 }

@@ -38,6 +38,7 @@ pub struct Store {
     pub(crate) panes: Option<PaneNode>,
     pub(crate) focused: Option<String>,
     pub(crate) hole: Option<(PaneNode, String)>,
+    pub(crate) zoomed: Option<String>,
     pub(crate) prefs: Prefs,
     pub(crate) search: Search,
     pub(crate) bell: Bell,
@@ -87,6 +88,7 @@ impl Store {
             panes: None,
             focused: None,
             hole: None,
+            zoomed: None,
             prefs: Prefs::default(),
             search: Search::default(),
             bell: Bell::default(),
@@ -138,6 +140,9 @@ impl Store {
     }
 
     pub(crate) fn mark(&mut self, areas: Areas) {
+        if areas.intersects(Areas::PANES) {
+            self.settle_zoom();
+        }
         if !self.gone {
             self.changes.mark(areas);
         }
