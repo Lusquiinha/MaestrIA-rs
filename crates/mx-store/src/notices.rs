@@ -76,6 +76,7 @@ impl Store {
     }
 
     pub fn show_banner_with(&mut self, text: &str, sticky: bool) {
+        self.forget_undo();
         self.bell.banner = Some(text.to_owned());
         self.timers.cancel(&TimerKey::Banner);
         if !sticky {
@@ -86,6 +87,7 @@ impl Store {
     }
 
     pub fn clear_banner(&mut self) {
+        self.forget_undo();
         self.timers.cancel(&TimerKey::Banner);
         if self.bell.banner.take().is_some() {
             self.mark(Areas::BANNER);

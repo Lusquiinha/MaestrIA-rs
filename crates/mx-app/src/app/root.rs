@@ -23,6 +23,7 @@ use crate::status_bar::{self, SessionsView, StatusBar};
 use crate::chrome::anim::slots;
 
 const ROOT_CONTEXT: &str = "MaestriaRoot";
+const UNDO_LABEL: &str = "desfazer";
 const NOTICES_ABOVE_PLUGIN_LAYERS: usize = 5;
 
 #[derive(Debug, Clone, Copy)]
@@ -259,7 +260,7 @@ impl Render for Root {
         let hidden = prefs.sidebar_hidden;
         let width = fit_sidebar(prefs.sidebar_width as f32, f32::from(window.viewport_size().width));
         let sessions_open = store.bell().sessions_open;
-        let banner_text = store.banner().map(str::to_owned);
+        let banner_text = store.banner().map(|b| (b.to_owned(), store.can_undo_panes()));
 
         let rail = AnyView::from(self.rail.clone())
             .cached(StyleRefinement::default().w(px(rail::WIDTH + GAP)).h_full().flex_none());
@@ -353,15 +354,16 @@ impl Render for Root {
 }
 
 impl Root {
-    fn notices(&self, banner_text: Option<String>, top: bool, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn notices(&self, banner_text: Option<(String, bool)>, top: bool, cx: &mut Context<Self>) -> gpui::AnyElement {
         let ui = self.ui.read(cx);
         if let Some(center) = ui.center.clone() {
             let pos = div().absolute().right(px(8.));
             let pos = if top { pos.top(px(8.)) } else { pos.bottom(px(8.)) };
             return pos.child(center).into_any_element();
         }
-        let banner = banner_text.map(|text| {
-            Banner::new(text, Rc::new(|_, cx: &mut App| ui::act(cx, Store::clear_banner))).on_top(top)
+        let banner = banner_text.map(|(text, undo)| {
+            let b = Banner::new(text, Rc::new(|_, cx: &mut App| ui::act(cx, Store::clear_banner))).on_top(top);
+            if undo { b.action(UNDO_LABEL, Rc::new(|_, cx: &mut App| ui::act(cx, |s| { s.undo_panes(); }))) } else { b }
         });
         let col = div().absolute().left(px(8.)).right(px(8.)).flex().flex_col().items_end().gap(px(8.));
         let col = if top { col.top(px(8.)) } else { col.bottom(px(8.)) };

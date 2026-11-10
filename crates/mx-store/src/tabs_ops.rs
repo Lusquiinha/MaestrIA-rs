@@ -28,7 +28,9 @@ impl Store {
         if !self.is_open(id) {
             return;
         }
+        let before = self.snapshot();
         self.drop_from_tree(id);
+        self.offer_undo(before, id);
         self.save();
         self.mark(Areas::PANES | Areas::SIDEBAR);
     }
@@ -169,6 +171,7 @@ impl Store {
             self.select(id);
             return;
         }
+        let before = self.snapshot();
         let swapped = drop == PaneDrop::Swap && self.panes.as_mut().is_some_and(|p| p.swap_leaves(target, id));
         if !swapped {
             self.drop_from_tree(id);
@@ -188,6 +191,7 @@ impl Store {
             }
         }
         self.focused = Some(id.to_owned());
+        self.offer_undo(before, target);
         self.save();
         self.mark(Areas::PANES | Areas::SIDEBAR);
     }
@@ -253,7 +257,7 @@ impl Store {
             .map_or(-1, |i| i as i64);
         let next = (current + delta).rem_euclid(ring.len() as i64) as usize;
         let id = ring[next].clone();
-        self.select(&id);
+        self.muting_undo(|s| s.select(&id));
     }
 
     pub fn set_hotkey(&mut self, id: &str, chord: Option<&str>) {

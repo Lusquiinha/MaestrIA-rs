@@ -172,9 +172,12 @@ impl Store {
                     let (target, side) = self.beside(&host);
                     self.panes = self.panes.take().map(|p| p.insert(id, &target, side));
                 } else if let Some(loose) = loose {
+                    let before = self.snapshot();
                     if let Some(p) = self.panes.as_mut() {
                         p.swap(&loose, id);
                     }
+                    self.focused = Some(id.to_owned());
+                    self.offer_undo(before, &loose);
                 } else if !self.fill_hole(id) {
                     self.panes = self.panes.take().map(|p| self.split_largest(p, id));
                 }

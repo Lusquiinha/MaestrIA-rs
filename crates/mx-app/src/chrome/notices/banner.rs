@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use gpui::{
-    Animation, AnimationExt, App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window, div, px,
+    Animation, AnimationExt, App, ElementId, FontWeight, InteractiveElement, IntoElement, ParentElement, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 
 use super::anim_off;
@@ -17,12 +17,18 @@ pub const ENTER: Duration = Duration::from_millis(160);
 pub struct Banner {
     text: SharedString,
     on_close: Callback,
+    action: Option<(SharedString, Callback)>,
     from_top: bool,
 }
 
 impl Banner {
     pub fn new(text: impl Into<SharedString>, on_close: Callback) -> Self {
-        Self { text: text.into(), on_close, from_top: false }
+        Self { text: text.into(), on_close, action: None, from_top: false }
+    }
+
+    pub fn action(mut self, label: impl Into<SharedString>, on_click: Callback) -> Self {
+        self.action = Some((label.into(), on_click));
+        self
     }
 
     pub fn on_top(mut self, top: bool) -> Self {
@@ -62,6 +68,22 @@ impl RenderOnce for Banner {
                     .text_color(hsla(t.fg))
                     .child(self.text.clone()),
             )
+            .children(self.action.map(|(label, act)| {
+                let sel = label.clone();
+                div()
+                    .id("banner-action")
+                    .debug_selector(move || format!("banner-action:{sel}"))
+                    .flex_none()
+                    .mr(px(6.))
+                    .text_size(px(12.5))
+                    .line_height(px(17.5))
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(hsla(t.accent))
+                    .cursor_pointer()
+                    .hover(|s| s.underline())
+                    .on_click(move |_, w, cx| act(w, cx))
+                    .child(label)
+            }))
             .child(
                 IconButton::new("banner-close", icon::CLOSE)
                     .size(20., 14., 4.)
