@@ -13,6 +13,19 @@ pub enum Action {
     PrevPane,
     NextSession,
     PrevSession,
+    FocusLeft,
+    FocusRight,
+    FocusUp,
+    FocusDown,
+    SwapLeft,
+    SwapRight,
+    SwapUp,
+    SwapDown,
+    ShellRight,
+    ShellBelow,
+    Equalize,
+    Maximize,
+    UndoPanes,
     FindInPane,
     Search,
     Markdown,
@@ -40,10 +53,11 @@ const fn info(id: &'static str, label: &'static str, hint: Option<&'static str>,
 
 const S: &str = "Sessões";
 const N: &str = "Navegação";
+const P: &str = "Painéis";
 const E: &str = "Exibição";
 const J: &str = "Janela";
 
-const INFO: [Info; 23] = [
+const INFO: [Info; 36] = [
     info("claude", "Nova sessão Claude", Some("Na pasta e na feature/hotfix do painel em foco"), S),
     info("shell", "Novo shell", Some("Um terminal comum, no mesmo lugar"), S),
     info("task", "Nova task", Some("Abre a worktree e sobe uma sessão nela"), S),
@@ -60,6 +74,19 @@ const INFO: [Info; 23] = [
     info("prev-pane", "Painel anterior", None, N),
     info("next-session", "Próxima sessão", Some("Percorre a lateral inteira, painel aberto ou não"), N),
     info("prev-session", "Sessão anterior", None, N),
+    info("focus-left", "Painel à esquerda", Some("O vizinho na tela, naquela direção"), P),
+    info("focus-right", "Painel à direita", None, P),
+    info("focus-up", "Painel de cima", None, P),
+    info("focus-down", "Painel de baixo", None, P),
+    info("swap-left", "Trocar com o painel à esquerda", Some("O painel em foco troca de lugar com o vizinho"), P),
+    info("swap-right", "Trocar com o painel à direita", None, P),
+    info("swap-up", "Trocar com o painel de cima", None, P),
+    info("swap-down", "Trocar com o painel de baixo", None, P),
+    info("shell-right", "Novo shell à direita", Some("Divide o painel em foco, na mesma pasta"), P),
+    info("shell-below", "Novo shell abaixo", None, P),
+    info("equalize", "Igualar os painéis", Some("Todos do mesmo tamanho; duplo clique num divisor iguala só aquele"), P),
+    info("maximize", "Maximizar o painel em foco", Some("Só ele na tela; de novo, ou Shift+Esc, volta"), P),
+    info("undo-panes", "Desfazer nos painéis", Some("Volta um passo: troca, divisão ou tamanho; de novo, volta outro"), P),
     info(
         "find",
         "Buscar no painel",
@@ -95,7 +122,7 @@ const INFO: [Info; 23] = [
 ];
 
 impl Action {
-    pub const ALL: [Action; 23] = [
+    pub const ALL: [Action; 36] = [
         Action::Claude,
         Action::Shell,
         Action::Task,
@@ -107,6 +134,19 @@ impl Action {
         Action::PrevPane,
         Action::NextSession,
         Action::PrevSession,
+        Action::FocusLeft,
+        Action::FocusRight,
+        Action::FocusUp,
+        Action::FocusDown,
+        Action::SwapLeft,
+        Action::SwapRight,
+        Action::SwapUp,
+        Action::SwapDown,
+        Action::ShellRight,
+        Action::ShellBelow,
+        Action::Equalize,
+        Action::Maximize,
+        Action::UndoPanes,
         Action::FindInPane,
         Action::Search,
         Action::Markdown,
@@ -182,6 +222,14 @@ fn ctrl_shift(key: Key) -> Chord {
     ch(key, true, true, false, false)
 }
 
+fn ctrl_alt(key: Key) -> Chord {
+    ch(key, true, false, true, false)
+}
+
+fn alt_shift(key: Key) -> Chord {
+    ch(key, false, true, true, false)
+}
+
 fn mac_defaults(a: Action) -> Vec<Chord> {
     match a {
         Action::Claude => vec![cmd(c('t'))],
@@ -195,6 +243,19 @@ fn mac_defaults(a: Action) -> Vec<Chord> {
         Action::PrevPane => vec![ctrl_shift(Key::Tab), alt_cmd(Key::Up)],
         Action::NextSession => vec![alt_cmd(Key::Right)],
         Action::PrevSession => vec![alt_cmd(Key::Left)],
+        Action::FocusLeft => vec![ch(Key::Left, true, false, false, true)],
+        Action::FocusRight => vec![ch(Key::Right, true, false, false, true)],
+        Action::FocusUp => vec![ch(Key::Up, true, false, false, true)],
+        Action::FocusDown => vec![ch(Key::Down, true, false, false, true)],
+        Action::SwapLeft => vec![ch(Key::Left, true, true, false, true)],
+        Action::SwapRight => vec![ch(Key::Right, true, true, false, true)],
+        Action::SwapUp => vec![ch(Key::Up, true, true, false, true)],
+        Action::SwapDown => vec![ch(Key::Down, true, true, false, true)],
+        Action::ShellRight => vec![cmd(c('d'))],
+        Action::ShellBelow => vec![shift_cmd(c('d'))],
+        Action::Equalize => vec![alt_cmd(c('='))],
+        Action::Maximize => vec![shift_cmd(Key::Enter)],
+        Action::UndoPanes => vec![alt_cmd(c('z'))],
         Action::FindInPane => vec![cmd(c('f'))],
         Action::Search => vec![shift_cmd(c('f'))],
         Action::Markdown => vec![cmd(c('o'))],
@@ -223,6 +284,19 @@ fn linux_defaults(a: Action) -> Vec<Chord> {
         Action::PrevPane => vec![ctrl_shift(Key::Tab), ctrl(Key::PageUp)],
         Action::NextSession => vec![ctrl_shift(Key::Right)],
         Action::PrevSession => vec![ctrl_shift(Key::Left)],
+        Action::FocusLeft => vec![alt_shift(Key::Left)],
+        Action::FocusRight => vec![alt_shift(Key::Right)],
+        Action::FocusUp => vec![alt_shift(Key::Up)],
+        Action::FocusDown => vec![alt_shift(Key::Down)],
+        Action::SwapLeft => vec![ch(c('h'), true, true, true, false)],
+        Action::SwapRight => vec![ch(c('l'), true, true, true, false)],
+        Action::SwapUp => vec![ch(c('k'), true, true, true, false)],
+        Action::SwapDown => vec![ch(c('j'), true, true, true, false)],
+        Action::ShellRight => vec![ctrl_shift(c('d'))],
+        Action::ShellBelow => vec![ch(c('d'), true, true, true, false)],
+        Action::Equalize => vec![ctrl_alt(c('='))],
+        Action::Maximize => vec![ctrl_alt(Key::Enter)],
+        Action::UndoPanes => vec![ctrl_alt(c('z'))],
         Action::FindInPane => vec![ctrl_shift(c('f'))],
         Action::Search => vec![ch(c('f'), true, false, true, false)],
         Action::Markdown => vec![ctrl_shift(c('o'))],

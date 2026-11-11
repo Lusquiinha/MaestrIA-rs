@@ -3,6 +3,7 @@ use mx_core::model::{Notice, NoticeKind};
 use mx_core::text::Time;
 
 use crate::changes::Areas;
+use crate::placement::How;
 use crate::store::Store;
 use crate::timers::{BANNER_LIFE, TOAST_LIFE, TimerKey};
 
@@ -75,6 +76,7 @@ impl Store {
     }
 
     pub fn show_banner_with(&mut self, text: &str, sticky: bool) {
+        self.forget_undo_banner();
         self.bell.banner = Some(text.to_owned());
         self.timers.cancel(&TimerKey::Banner);
         if !sticky {
@@ -85,6 +87,7 @@ impl Store {
     }
 
     pub fn clear_banner(&mut self) {
+        self.forget_undo_banner();
         self.timers.cancel(&TimerKey::Banner);
         if self.bell.banner.take().is_some() {
             self.mark(Areas::BANNER);
@@ -222,7 +225,7 @@ impl Store {
 
     pub fn open_session(&mut self, tab: &str) {
         self.close_sessions();
-        self.select(tab);
+        self.select_with(tab, How::FromSetting);
     }
 
     pub fn open_notice(&mut self, id: u64) {
@@ -238,7 +241,7 @@ impl Store {
         self.read_notices_of(&tab, true, true);
         self.bell.notices_open = false;
         self.mark(Areas::NOTICES);
-        self.select(&tab);
+        self.select_with(&tab, How::FromSetting);
     }
 
     pub fn dismiss_notice(&mut self, id: u64) {

@@ -3,7 +3,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement, Styled, Subscription, Window, div, prelude::FluentBuilder, px,
 };
 use mx_plugins::rail::{NO_WINDOWS, sidebar_placeholder};
-use mx_store::{Areas, Store};
+use mx_store::{Areas, How, Store};
 
 use super::surface::{Surface, SurfaceEnv, TermViews};
 use crate::app::host::{StoreChanged, StoreHost, update_store};
@@ -76,7 +76,7 @@ fn windows(mx: &Mx, host: &Entity<StoreHost>, store: &Store, plugin: &str, empty
         let host = host.clone();
         let tab = id.clone();
         let active = focused.as_deref() == Some(id.as_str()) && store.is_open(&id);
-        out.push(row(mx, format!("win:{id}"), title, active, move |_, cx| update_store(&host, cx, |s| s.select(&tab))));
+        out.push(row(mx, format!("win:{id}"), title, active, move |_, cx| update_store(&host, cx, |s| s.select_with(&tab, How::FromSetting))));
     }
     out
 }

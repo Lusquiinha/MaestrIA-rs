@@ -112,6 +112,44 @@ fn linux_defaults_have_no_meta_no_duplicates_and_avoid_fixed_keys() {
 }
 
 #[test]
+fn linux_pane_defaults_stay_clear_of_gnome_workspace_keys() {
+    let id = |a: Action| chord_id(&a.defaults(true)[0]);
+    let got: Vec<String> = [
+        Action::SwapLeft,
+        Action::SwapDown,
+        Action::SwapUp,
+        Action::SwapRight,
+        Action::FocusLeft,
+        Action::ShellRight,
+        Action::ShellBelow,
+        Action::Equalize,
+        Action::Maximize,
+        Action::UndoPanes,
+    ]
+    .into_iter()
+    .map(id)
+    .collect();
+    assert_eq!(
+        got,
+        [
+            "ctrl+alt+shift+h",
+            "ctrl+alt+shift+j",
+            "ctrl+alt+shift+k",
+            "ctrl+alt+shift+l",
+            "alt+shift+left",
+            "ctrl+shift+d",
+            "ctrl+alt+shift+d",
+            "ctrl+alt+=",
+            "ctrl+alt+enter",
+            "ctrl+alt+z",
+        ]
+    );
+    for c in all_defaults(true) {
+        assert!(!(c.control && c.alt && matches!(c.key, Key::Left | Key::Right | Key::Up | Key::Down)), "{}", chord_id(&c));
+    }
+}
+
+#[test]
 fn linux_labels_ids_and_paste() {
     let c = Action::Claude.defaults(true)[0];
     assert_eq!(c.label(true), "Ctrl+Shift+T");
@@ -294,7 +332,7 @@ fn shortcut_rows_follow_enum_order_and_flag_changes() {
     let mut m = Keymap::defaults(true);
     m.bind(Action::Refresh, chord("f5"), None);
     let rows = shortcut_rows(&m);
-    assert_eq!(rows.len(), 23);
+    assert_eq!(rows.len(), Action::ALL.len());
     assert_eq!(rows[0].action, "claude");
     let refresh = rows.iter().find(|r| r.action == "refresh").unwrap();
     assert!(refresh.changed);

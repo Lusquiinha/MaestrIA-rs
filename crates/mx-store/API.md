@@ -48,8 +48,19 @@ Group(idx of 4)} chosen_tint_of reading() last_import() matches(t) hits() has_hi
   complete_feature remove_feature assign tabs_in`.
 - Tabs: `open_shell open_shell_with open_launcher open_claude(ClaudeSpec) open_claude_placed(spec, place) relaunch select place dismiss
   close_tab -> Option<Tab> close_focused close_settled settled_in rename_tab set_tab_tint set_done move_tab
-  toggle_pin drop_tab(id, target, DropSide) focus_pane cycle_pane cycle resize_split(path, gutter,
-  delta, total) reveal_tab look set_panes`.
+  toggle_pin drop_tab(id, target, PaneDrop::{Replace, Swap, Split(side), Edge(side)}) drop_at_edge(id, side)
+  focus_pane cycle_pane cycle resize_split(path, gutter, delta, total) equalize_panes equalize_split(path)
+  reveal_tab look set_panes`.
+- Zoom (render-only, never saved; ends when the pane leaves the tree, loses focus or the screen changes):
+  `zoomed() toggle_zoom toggle_zoom_of(id) unzoom -> bool`.
+- Pane keys: `focus_toward(side) swap_toward(side)` (geometric neighbour from `pane_area`, else the order)
+  `open_shell_toward(folder, feature, side)`.
+- Pane undo (layout history per screen, last 30 steps): replace, dismiss, drop, split, swap, equalize and each
+  resize gesture (`begin_resize` then `resize_split`s) push the tree, focus, hole and pins before them;
+  `can_undo_panes() undo_panes() -> bool` pop one step, skipping steps whose tabs were closed. Cycling, focus,
+  zoom, screen parking, startup and opening a group are not steps (the last two clear the screen's history).
+  A pane that left the screen shows "<título> saiu da tela"; `banner_offers_undo()` says whether that banner
+  still carries the desfazer button.
 - Panel hotkeys (chord ids): `set_hotkey(id, Option<&str>)` steals from other panels with a banner,
   `release_hotkey(chord)` (an action took it), `retain_hotkeys(keep)` (load-time drop of action-owned keys),
   `panel_for(accepts) -> Option<id>`; free fn `hotkey_label(id)`.

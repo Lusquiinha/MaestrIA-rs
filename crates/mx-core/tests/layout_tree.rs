@@ -261,6 +261,52 @@ fn legacy_two_slot_layout_is_a_row_of_two_or_one_leaf() {
     assert_eq!(layout::legacy_two_slot(None, Some("b".into())), None);
 }
 
+#[test]
+fn swapping_two_leaves_exchanges_their_places_and_keeps_the_shape() {
+    let mut n = row(vec![leaf("a"), column(vec![leaf("b"), leaf("c")], vec![0.3, 0.7])], vec![0.4, 0.6]);
+    assert!(n.swap_leaves("a", "c"));
+    assert_eq!(n, row(vec![leaf("c"), column(vec![leaf("b"), leaf("a")], vec![0.3, 0.7])], vec![0.4, 0.6]));
+}
+
+#[test]
+fn swapping_with_a_missing_leaf_or_itself_changes_nothing() {
+    let before = row(vec![leaf("a"), leaf("b")], vec![0.3, 0.7]);
+    let mut n = before.clone();
+    assert!(!n.swap_leaves("a", "z"));
+    assert!(!n.swap_leaves("a", "a"));
+    assert_eq!(n, before);
+}
+
+#[test]
+fn equalize_evens_out_every_split_in_the_tree() {
+    let mut n = row(
+        vec![leaf("a"), column(vec![leaf("b"), leaf("c"), leaf("d")], vec![0.1, 0.2, 0.7]), leaf("e")],
+        vec![0.2, 0.5, 0.3],
+    );
+    n.equalize();
+    assert!(close(&weights(&n), &[1. / 3., 1. / 3., 1. / 3.]));
+    assert!(close(&weights(&n.as_split().unwrap().children[1]), &[1. / 3., 1. / 3., 1. / 3.]));
+    assert_eq!(n.order(), ["a", "b", "c", "d", "e"]);
+}
+
+#[test]
+fn equalize_at_a_path_only_touches_that_split() {
+    let mut n = row(vec![leaf("a"), column(vec![leaf("b"), leaf("c")], vec![0.2, 0.8])], vec![0.3, 0.7]);
+    assert!(n.equalize_at(&[1]));
+    assert!(close(&weights(&n), &[0.3, 0.7]));
+    assert!(close(&weights(&n.as_split().unwrap().children[1]), &[0.5, 0.5]));
+    assert!(!n.equalize_at(&[0]));
+    assert!(!n.equalize_at(&[5]));
+}
+
+#[test]
+fn equalizing_a_single_leaf_is_harmless() {
+    let mut n = leaf("a");
+    n.equalize();
+    assert_eq!(n, leaf("a"));
+    assert!(!n.equalize_at(&[]));
+}
+
 #[derive(Debug, Clone)]
 enum Op {
     Insert(usize, u8),

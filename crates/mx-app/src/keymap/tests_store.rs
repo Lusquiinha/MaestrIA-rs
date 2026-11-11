@@ -193,3 +193,41 @@ fn the_panel_recorder_refuses_action_and_plugin_keys_and_takes_free_ones() {
     assert!(matches!(judge(&press("g", false, false, false), &m, none), HotkeyCheck::Rejected(why) if why.starts_with("G: ")));
     assert_eq!(judge(&press("1", false, true, false), &m, none), HotkeyCheck::Accepted("alt+1".into()));
 }
+
+#[test]
+fn pane_keys_split_walk_maximize_and_equalize() {
+    let mut r = rig();
+    let a = shell(&mut r.s, "a");
+    run_action(&mut r.s, Action::ShellRight);
+    let b = r.s.focused_tab_id().unwrap();
+    run_action(&mut r.s, Action::ShellBelow);
+    let c = r.s.focused_tab_id().unwrap();
+    assert_eq!(r.s.order(), [a.clone(), b.clone(), c.clone()]);
+    r.s.set_pane_area(1008., 608.);
+    run_action(&mut r.s, Action::FocusUp);
+    assert_eq!(r.s.focused_tab_id(), Some(b.clone()));
+    run_action(&mut r.s, Action::FocusLeft);
+    assert_eq!(r.s.focused_tab_id(), Some(a.clone()));
+    run_action(&mut r.s, Action::SwapRight);
+    assert_eq!(r.s.order(), [b.clone(), a.clone(), c]);
+    run_action(&mut r.s, Action::Maximize);
+    assert_eq!(r.s.zoomed(), Some(a.as_str()));
+    run_action(&mut r.s, Action::Maximize);
+    assert_eq!(r.s.zoomed(), None);
+    r.s.resize_split(&[], 0, 200., 1000.);
+    run_action(&mut r.s, Action::Equalize);
+    assert_eq!(r.s.panes().unwrap().as_split().unwrap().weights, [0.5, 0.5]);
+}
+
+#[test]
+fn the_undo_key_brings_back_the_pane_a_new_shell_replaced() {
+    let mut r = rig();
+    let a = shell(&mut r.s, "a");
+    let b = shell(&mut r.s, "b");
+    assert_eq!(r.s.order(), [b]);
+    assert_eq!(r.s.banner(), Some("a saiu da tela"));
+    run_action(&mut r.s, Action::UndoPanes);
+    assert_eq!(r.s.order(), [a]);
+    run_action(&mut r.s, Action::UndoPanes);
+    assert_eq!(r.s.banner(), Some(mx_store::NOTHING_TO_UNDO));
+}

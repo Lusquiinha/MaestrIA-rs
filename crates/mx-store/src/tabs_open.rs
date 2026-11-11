@@ -7,6 +7,7 @@ use serde_json::json;
 
 use crate::changes::Areas;
 use crate::msg::Done;
+use crate::placement::How;
 use crate::store::Store;
 use crate::timers::{SETTLE, TimerKey};
 
@@ -220,7 +221,7 @@ impl Store {
         self.terms.insert(id.clone(), term);
         self.p.plugins.emit("session.opened", data, &["onSession"], None);
         if place {
-            self.place(&id);
+            self.place_with(&id, How::FromSetting);
         }
         self.save();
         self.mark_tab(&id);

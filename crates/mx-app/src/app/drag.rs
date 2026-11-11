@@ -1,5 +1,5 @@
 use gpui::{
-    AppContext, Context, CursorStyle, Div, Entity, FontWeight, Hsla, IntoElement, ParentElement,
+    AppContext, Context, CursorStyle, Div, Entity, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement,
     Pixels, Point, Render, Stateful, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px, svg,
 };
 
@@ -15,6 +15,14 @@ pub struct DraggedTab {
     pub from_tray: bool,
 }
 
+pub const GHOST_ANCHOR: (f32, f32) = (18., 17.);
+
+pub fn under_cursor(grab: Point<Pixels>, ghost: impl IntoElement) -> Div {
+    let (ax, ay) = GHOST_ANCHOR;
+    // The drag view is laid out as a taffy root, which ignores its own insets.
+    div().child(div().absolute().left(grab.x - px(ax)).top(grab.y - px(ay)).child(ghost))
+}
+
 pub struct TabGhost {
     pub title: String,
     pub at: Point<Pixels>,
@@ -23,8 +31,10 @@ pub struct TabGhost {
 impl Render for TabGhost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mx = Mx::get(cx);
-        div().pl(self.at.x - px(20.)).pt(self.at.y - px(16.)).child(
+        under_cursor(
+            self.at,
             div()
+                .debug_selector(|| "tab-ghost".into())
                 .w(px(240.))
                 .px(px(12.))
                 .py(px(9.))
@@ -42,8 +52,6 @@ impl Render for TabGhost {
     }
 }
 
-pub const HEADER_ANCHOR: (f32, f32) = (18., 17.);
-
 pub struct HeaderGhost {
     pub title: String,
     pub tint: Option<Hsla>,
@@ -53,9 +61,10 @@ pub struct HeaderGhost {
 impl Render for HeaderGhost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mx = Mx::get(cx);
-        let (ax, ay) = HEADER_ANCHOR;
-        div().relative().left(self.at.x - px(ax)).top(self.at.y - px(ay)).child(
+        under_cursor(
+            self.at,
             div()
+                .debug_selector(|| "header-ghost".into())
                 .max_w(px(280.))
                 .h(px(34.))
                 .px(px(12.))

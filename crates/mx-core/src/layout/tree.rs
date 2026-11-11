@@ -100,6 +100,14 @@ impl PaneNode {
         }
     }
 
+    pub fn split_at(&self, path: &[usize]) -> Option<&PaneSplit> {
+        let mut node = self;
+        for &i in path {
+            node = node.as_split()?.children.get(i)?;
+        }
+        node.as_split()
+    }
+
     pub fn split_at_mut(&mut self, path: &[usize]) -> Option<&mut PaneSplit> {
         let mut node = self;
         for &i in path {
@@ -146,6 +154,40 @@ impl PaneNode {
     pub fn swap(&mut self, target_id: &str, tab_id: &str) {
         if let Some(id) = self.leaf_mut(target_id) {
             *id = tab_id.to_owned();
+        }
+    }
+
+    pub fn swap_leaves(&mut self, a: &str, b: &str) -> bool {
+        if a == b || !self.has(a) || !self.has(b) {
+            return false;
+        }
+        self.relabel(a, b);
+        true
+    }
+
+    fn relabel(&mut self, a: &str, b: &str) {
+        match self {
+            PaneNode::Leaf(id) if id == a => *id = b.to_owned(),
+            PaneNode::Leaf(id) if id == b => *id = a.to_owned(),
+            PaneNode::Leaf(_) => {}
+            PaneNode::Split(s) => s.children.iter_mut().for_each(|c| c.relabel(a, b)),
+        }
+    }
+
+    pub fn equalize(&mut self) {
+        if let PaneNode::Split(s) = self {
+            s.equalize();
+            s.children.iter_mut().for_each(PaneNode::equalize);
+        }
+    }
+
+    pub fn equalize_at(&mut self, path: &[usize]) -> bool {
+        match self.split_at_mut(path) {
+            Some(s) => {
+                s.equalize();
+                true
+            }
+            None => false,
         }
     }
 
@@ -275,6 +317,11 @@ impl PaneSplit {
             self.children.insert(i + k, c);
             self.weights.insert(i + k, share * w);
         }
+    }
+
+    pub fn equalize(&mut self) {
+        let n = self.weights.len() as f64;
+        self.weights.iter_mut().for_each(|w| *w = 1.0 / n);
     }
 
     pub fn resize(&mut self, gutter: isize, delta: f64, total: f64) {

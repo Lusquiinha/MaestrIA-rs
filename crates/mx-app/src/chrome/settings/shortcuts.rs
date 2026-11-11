@@ -6,7 +6,7 @@ use crate::chrome::icon::{self, icon};
 use crate::chrome::style::{MONO, hsla, theme};
 use crate::chrome::widgets::{Button, ButtonKind, IconButton, tip};
 
-pub const GROUPS: [&str; 4] = ["Sessões", "Navegação", "Exibição", "Janela"];
+pub const GROUPS: [&str; 5] = ["Sessões", "Navegação", "Painéis", "Exibição", "Janela"];
 pub const RECORD_PROMPT: &str = "Pressione a combinação   ⎋ cancela";
 
 fn row(d: &SettingsDialog, r: &ShortcutRow, cx: &mut Context<SettingsDialog>) -> AnyElement {

@@ -39,6 +39,7 @@ impl Store {
             theme: c.theme.filter(|t| !t.is_empty()).unwrap_or_else(|| mx_theme::DEFAULT_THEME_ID.to_owned()),
             typography: c.typography,
             cursor_shape: c.cursor_shape,
+            pane_open: c.pane_open,
             sidebar_width: c.sidebar_width,
             sidebar_hidden: c.sidebar_hidden,
             status_bar_top: c.status_bar_top,
@@ -118,6 +119,7 @@ impl Store {
             self.panes = tree;
         }
         self.focused = r.focused.or_else(|| self.order().into_iter().next());
+        self.forget_layout_history();
         self.save();
         self.mark(Areas::ALL);
     }

@@ -1,11 +1,12 @@
 use std::path::Path;
 
-use mx_core::model::WorktreeInfo;
+use mx_core::model::{Folder, WorktreeInfo};
 use mx_sys::code_workspace::looks_like_one;
 use mx_sys::git::GitOutcome;
 
 use crate::changes::Areas;
 use crate::msg::Done;
+use crate::placement::How;
 use crate::store::Store;
 use crate::tabs_open::ClaudeSpec;
 
@@ -118,6 +119,10 @@ impl Store {
             self.answer_created(task.reply, None);
             return;
         };
+        self.muting_undo(|s| s.open_task(task, folder, outcome));
+    }
+
+    fn open_task(&mut self, task: NewTask, folder: Folder, outcome: GitOutcome) {
         if let Some(setup) = task.setup_command.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
             let id = self.open_shell(&folder, Some(&outcome.path), Some(setup), task.feature.as_deref(), None);
             if let Some(t) = self.tab_mut(&id) {
@@ -131,7 +136,7 @@ impl Store {
         spec.prompt = task.prompt.clone();
         let id = self.open_claude(spec);
         if task.select {
-            self.select(&id);
+            self.select_with(&id, How::FromSetting);
         }
         self.answer_created(task.reply, Some(&id));
     }

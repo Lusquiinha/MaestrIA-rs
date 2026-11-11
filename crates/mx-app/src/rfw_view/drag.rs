@@ -3,12 +3,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    AppContext, BoxShadow, Context, CursorStyle, InteractiveElement, IntoElement, ParentElement, Render, Styled,
+    AppContext, BoxShadow, Context, CursorStyle, InteractiveElement, IntoElement, ParentElement, Pixels, Point, Render, Styled,
     WeakEntity, Window, div, point, prelude::*, px,
 };
 use mx_rfw::Widget;
 use mx_rfw::widgets::maestria::{Draggable, DropTarget};
 use mx_theme::Theme;
+
+use crate::app::drag::under_cursor;
 
 use super::layout::{Ctx, DragNow, DropInfo, El, Fit, owned, pass};
 use super::style::{alpha, hsla, on_accent, set_radius};
@@ -22,6 +24,7 @@ pub struct Preview {
     data_dir: Option<PathBuf>,
     width: f32,
     view: WeakEntity<RfwView>,
+    at: Point<Pixels>,
 }
 
 impl Render for Preview {
@@ -42,7 +45,7 @@ impl Render for Preview {
             widgets: None,
         };
         let body = self.widget.as_ref().map(|w| render(&mut cx, w, Fit { w: true, h: false }));
-        text_root(div(), &self.theme)
+        let preview = text_root(div(), &self.theme)
             .w(px(self.width))
             .rounded(px(10.0))
             .shadow(vec![BoxShadow {
@@ -51,7 +54,8 @@ impl Render for Preview {
                 blur_radius: px(24.0),
                 spread_radius: px(0.0),
             }])
-            .children(body)
+            .children(body);
+        under_cursor(self.at, preview)
     }
 }
 
@@ -69,7 +73,7 @@ pub fn draggable(cx: &mut Ctx, d: &Draggable, fit: Fit, theme: Arc<Theme>) -> El
     let data_dir = cx.data_dir.map(|p| p.to_path_buf());
     let el = pass(cx.el(), child).cursor(CursorStyle::OpenHand);
     let el = if lifted { el.opacity(0.3) } else { el };
-    el.on_drag(now, move |now, _, _, app| {
+    el.on_drag(now, move |now, at, _, app| {
         view.update(app, |v, cx| {
             v.dragging = Some(now.clone());
             cx.notify();
@@ -77,7 +81,7 @@ pub fn draggable(cx: &mut Ctx, d: &Draggable, fit: Fit, theme: Arc<Theme>) -> El
         .ok();
         let (widget, theme, dir, view) = (feedback.clone(), theme.clone(), dir.clone(), view.clone());
         let data_dir = data_dir.clone();
-        app.new(|_| Preview { widget, theme, dir, data_dir, width, view })
+        app.new(|_| Preview { widget, theme, dir, data_dir, width, view, at })
     })
 }
 

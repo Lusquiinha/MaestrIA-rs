@@ -55,6 +55,32 @@ impl CursorShape {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PaneOpen {
+    #[default]
+    Replace,
+    Beside,
+    Below,
+    Auto,
+}
+
+impl PaneOpen {
+    pub const ALL: [PaneOpen; 4] = [PaneOpen::Replace, PaneOpen::Beside, PaneOpen::Below, PaneOpen::Auto];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            PaneOpen::Replace => "replace",
+            PaneOpen::Beside => "beside",
+            PaneOpen::Below => "below",
+            PaneOpen::Auto => "auto",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<PaneOpen> {
+        Self::ALL.into_iter().find(|s| s.key() == key)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Typography {
     pub mono: String,
@@ -186,6 +212,7 @@ pub struct Config {
     pub theme: Option<String>,
     pub typography: Typography,
     pub cursor_shape: CursorShape,
+    pub pane_open: PaneOpen,
     pub shortcuts: Obj,
     pub plugins: Obj,
     pub layout: Option<Layout>,
@@ -217,6 +244,7 @@ impl Default for Config {
             theme: None,
             typography: Typography::default(),
             cursor_shape: CursorShape::Block,
+            pane_open: PaneOpen::Replace,
             shortcuts: Obj::new(),
             plugins: Obj::new(),
             layout: None,
@@ -299,6 +327,9 @@ impl Config {
         }
         if self.cursor_shape != CursorShape::Block {
             m.insert("cursorShape".into(), json!(self.cursor_shape.key()));
+        }
+        if self.pane_open != PaneOpen::Replace {
+            m.insert("paneOpen".into(), json!(self.pane_open.key()));
         }
         if !self.shortcuts.is_empty() {
             m.insert("shortcuts".into(), Value::Object(self.shortcuts.clone()));

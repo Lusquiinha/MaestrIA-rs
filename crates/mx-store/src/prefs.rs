@@ -1,6 +1,6 @@
 use mx_core::json::Obj;
 use mx_core::persist::{
-    CursorShape, DEFAULT_HIBERNATE_MINUTES, DEFAULT_SIDEBAR_WIDTH, MAX_HIBERNATE_MINUTES, MAX_SIDEBAR_WIDTH,
+    CursorShape, PaneOpen, DEFAULT_HIBERNATE_MINUTES, DEFAULT_SIDEBAR_WIDTH, MAX_HIBERNATE_MINUTES, MAX_SIDEBAR_WIDTH,
     MIN_SIDEBAR_WIDTH, Typography,
 };
 
@@ -12,6 +12,7 @@ pub struct Prefs {
     pub theme: String,
     pub typography: Typography,
     pub cursor_shape: CursorShape,
+    pub pane_open: PaneOpen,
     pub sidebar_width: f64,
     pub sidebar_hidden: bool,
     pub status_bar_top: bool,
@@ -35,6 +36,7 @@ impl Default for Prefs {
             theme: mx_theme::DEFAULT_THEME_ID.to_owned(),
             typography: Typography::default(),
             cursor_shape: CursorShape::Block,
+            pane_open: PaneOpen::Replace,
             sidebar_width: DEFAULT_SIDEBAR_WIDTH,
             sidebar_hidden: false,
             status_bar_top: false,
@@ -82,6 +84,10 @@ impl Store {
 
     pub fn set_cursor_shape(&mut self, shape: CursorShape) {
         self.set_pref(shape, |p| &mut p.cursor_shape);
+    }
+
+    pub fn set_pane_open(&mut self, mode: PaneOpen) {
+        self.set_pref(mode, |p| &mut p.pane_open);
     }
 
     pub fn zoom_focused(&mut self, by: i64) {
