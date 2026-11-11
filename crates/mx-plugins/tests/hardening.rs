@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
+#[cfg(target_os = "linux")]
 use std::time::Duration;
 
 use common::{SH_PLUGIN, plugins_in, until, write_plugin};
@@ -11,16 +12,19 @@ use mx_plugins::process::{ConnHandlers, Connection};
 use mx_plugins::{PluginListener, PluginState, Plugins};
 use serde_json::{Value, json};
 
+#[cfg(target_os = "linux")]
 fn alive(pid: &str) -> bool {
     fs::read_to_string(format!("/proc/{pid}/stat"))
         .is_ok_and(|stat| stat.rsplit(')').next().is_some_and(|rest| !rest.trim_start().starts_with('Z')))
 }
 
+#[cfg(target_os = "linux")]
 async fn read_pid(file: &Path) -> String {
     assert!(until(|| fs::read_to_string(file).is_ok_and(|t| t.ends_with('\n'))).await);
     fs::read_to_string(file).unwrap().trim().to_owned()
 }
 
+#[cfg(target_os = "linux")]
 fn counting_handlers(requests: Arc<AtomicUsize>) -> ConnHandlers {
     ConnHandlers {
         on_request: Arc::new(move |_, _| {
@@ -32,6 +36,7 @@ fn counting_handlers(requests: Arc<AtomicUsize>) -> ConnHandlers {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn spawn(dir: &Path, script: &str, requests: Arc<AtomicUsize>) -> Arc<Connection> {
     let dir = write_plugin(dir, "c", json!({}), &[("p.sh", script)]);
     let env: Vec<(String, String)> = std::env::vars().collect();
