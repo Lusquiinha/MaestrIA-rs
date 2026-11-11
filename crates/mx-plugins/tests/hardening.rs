@@ -1,6 +1,7 @@
 mod common;
 
 use std::fs;
+#[cfg(target_os = "linux")]
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
