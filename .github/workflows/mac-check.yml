@@ -1,0 +1,31 @@
+name: mac-check
+
+on:
+  push:
+    branches: [ci/mac-check-3.7.0]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  mac:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.93.0'
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          components: clippy
+      - uses: taiki-e/install-action@v2
+        with: { tool: cargo-bundle }
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --no-fail-fast
+      - run: ./packaging/macos/make-dmg.sh
+        env:
+          MAESTRIA_VERSION: '3.7.0'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: packaging/macos/dist/*.dmg
+          if-no-files-found: error
