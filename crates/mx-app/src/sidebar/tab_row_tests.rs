@@ -6,6 +6,7 @@ use mx_core::model::{FeatureOrHotfixKind, Folder};
 use serde_json::json;
 use tempfile::TempDir;
 
+use crate::app::drag::GHOST_ANCHOR;
 use crate::app::host::{StoreChanged, StoreHost};
 use crate::app::theme::Mx;
 use crate::panes::PaneArea;
@@ -161,4 +162,42 @@ fn clicking_a_tray_row_still_opens_the_session(cx: &mut TestAppContext) {
     cx.simulate_click(at, Modifiers::none());
     cx.run_until_parked();
     assert!(rig.read(cx, |s| s.is_open(&rig.tray)));
+}
+
+const GRABS: [f32; 3] = [0.03, 0.5, 0.97];
+
+fn assert_ghost_under_cursor(cx: &mut VisualTestContext, source: &str, ghost: &str, grab: f32) {
+    let row = bounds(cx, source);
+    let mut at = point(row.left() + row.size.width * grab, row.center().y);
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    for _ in 0..12 {
+        at = point(at.x + px(9.), at.y + px(6.));
+        cx.simulate_mouse_move(at, MouseButton::Left, Modifiers::none());
+        cx.run_until_parked();
+    }
+    let offset = bounds(cx, ghost).origin - at;
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    let (ax, ay) = GHOST_ANCHOR;
+    let anchor = point(px(-ax), px(-ay));
+    assert!((offset - anchor).magnitude() < 1., "{ghost} grabbed at {grab} of {source}: ghost origin is {offset:?} from the cursor");
+}
+
+#[gpui::test]
+fn the_drag_ghost_keeps_the_cursor_at_the_same_spot_wherever_a_row_or_pane_header_is_grabbed(cx: &mut TestAppContext) {
+    let (rig, cx) = mount(cx, true);
+    let pane = bounds(cx, &format!("pane:{}", rig.other));
+    drag_to(cx, &format!("tray-tab:{}", rig.tray), point(pane.right() - px(20.), pane.center().y));
+    for grab in GRABS {
+        assert_ghost_under_cursor(cx, &format!("tab:{}", rig.other), "tab-ghost", grab);
+        assert_ghost_under_cursor(cx, &format!("pane-header:{}", rig.other), "header-ghost", grab);
+    }
+}
+
+#[gpui::test]
+fn the_drag_ghost_keeps_the_cursor_at_the_same_spot_wherever_a_session_card_is_grabbed(cx: &mut TestAppContext) {
+    for grab in GRABS {
+        let (rig, cx) = mount(cx, false);
+        assert_ghost_under_cursor(cx, &format!("card:{}", rig.other), "card-ghost", grab);
+    }
 }

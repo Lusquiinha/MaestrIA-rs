@@ -1,13 +1,13 @@
 use gpui::{
     AnyElement, App, AppContext, Context, Entity, FontWeight, Hsla, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
+    ParentElement, Pixels, Point, Render, SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px,
 };
 use mx_core::model::Tab;
 use mx_store::Store;
 
 use super::cards_model::{self as model, Bucket, GAP, NOTHING_SAID, StateTone};
 use crate::app::avatar::dot;
-use crate::app::drag::DraggedTab;
+use crate::app::drag::{DraggedTab, under_cursor};
 use crate::app::host::{StoreHost, update_store};
 use crate::app::icons::{Icon, icon};
 use crate::app::panel_actions::open_panel_menu;
@@ -184,9 +184,11 @@ impl Card {
         let (accent, hover, shadow) = (mx.accent, mx.bg_hover, mx.card_shadow(16., 6.));
         let (click_host, menu_id, click_id) = (host.clone(), self.id.clone(), self.id.clone());
         let drag = DraggedTab { id: self.id.clone(), title: self.title.clone(), folder_root: self.folder_root.clone(), from_tray: false };
-        let ghost = CardGhost { card: self.clone(), width };
+        let ghost = CardGhost { card: self.clone(), width, at: Point::default() };
+        let selector = format!("card:{}", self.id);
         self.face(mx, width)
-            .id(SharedString::from(format!("card:{}", self.id)))
+            .id(SharedString::from(selector.clone()))
+            .debug_selector(move || selector.clone())
             .cursor_pointer()
             .hover(move |s| s.bg(hover).border_color(accent.opacity(0.6)).shadow(shadow.clone()))
             .on_click(move |_, _, cx: &mut App| update_store(&click_host, cx, |s| model::open_card(s, &click_id)))
@@ -194,7 +196,7 @@ impl Card {
                 cx.stop_propagation();
                 open_panel_menu(&menu_id, ev.position, cx)
             })
-            .on_drag(drag, move |_, _, _, cx| cx.new(|_| ghost.clone()))
+            .on_drag(drag, move |_, at, _, cx| cx.new(|_| CardGhost { at, ..ghost.clone() }))
             .into_any_element()
     }
 }
@@ -203,11 +205,12 @@ impl Card {
 struct CardGhost {
     card: Card,
     width: f32,
+    at: Point<Pixels>,
 }
 
 impl Render for CardGhost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mx = Mx::get(cx).clone();
-        self.card.face(&mx, self.width).opacity(0.92)
+        under_cursor(self.at, self.card.face(&mx, self.width).opacity(0.92).debug_selector(|| "card-ghost".into()))
     }
 }

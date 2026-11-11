@@ -220,6 +220,10 @@ impl Header {
         };
         let el = div()
             .id(SharedString::from(format!("pane-header:{}", self.id)))
+            .debug_selector({
+                let id = self.id.clone();
+                move || format!("pane-header:{id}")
+            })
             .h(px(HEIGHT))
             .flex_none()
             .pl(px(12.))
