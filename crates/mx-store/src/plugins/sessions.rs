@@ -62,6 +62,7 @@ impl Store {
             hibernated: t.hibernated,
             exited: t.exited,
             tint: t.tint,
+            background_agents: t.hooks.forks_out as i64,
             on_screen: self.is_open(&t.id),
             focused: self.focused.as_deref() == Some(t.id.as_str()),
             started_at: iso8601(&t.started_at),

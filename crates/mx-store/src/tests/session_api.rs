@@ -473,3 +473,15 @@ async fn tint_colors_the_tab_shows_in_the_list_and_null_clears_it() {
     rpc(&mut rig, &create, "session.tint", json!({"tabId": id, "tint": null})).await.unwrap();
     assert_eq!(rig.t(&id).tint, None);
 }
+
+#[tokio::test]
+async fn sessions_list_counts_the_background_agents_still_running() {
+    let mut rig = Rig::new();
+    rig.s1();
+    let id = claude(&mut rig, "c1");
+    let p = with(&[]);
+    rig.tm(&id).hooks.forks_out = 2;
+    let listed = rpc(&mut rig, &p, "sessions.list", json!({})).await.unwrap();
+    let row = listed.as_array().unwrap().iter().find(|s| s["id"] == json!("c1")).unwrap().clone();
+    assert_eq!(row["backgroundAgents"], json!(2));
+}
