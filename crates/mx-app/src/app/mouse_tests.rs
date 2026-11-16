@@ -25,6 +25,10 @@ impl Window2 {
     fn focused(&self, cx: &mut VisualTestContext) -> Option<String> {
         self.host.read_with(cx, |h, _| h.store.focused_tab_id())
     }
+
+    fn hotkey(&self, cx: &mut VisualTestContext, tab: &str) -> Option<String> {
+        self.host.read_with(cx, |h, _| h.store.tab(tab).and_then(|t| t.hotkey.clone()))
+    }
 }
 
 fn keyboard_focus(cx: &mut VisualTestContext) -> Option<FocusHandle> {
@@ -90,4 +94,17 @@ fn an_unbound_side_button_does_not_move_the_focus(cx: &mut TestAppContext) {
     press(cx, &w.b, FORWARD, Modifiers::none());
     assert_eq!(w.focused(cx).as_deref(), Some(w.a.as_str()));
     assert!(keyboard_focus(cx) == before, "the keyboard stays where it was");
+}
+
+#[gpui::test]
+fn the_panel_hotkey_dialog_records_a_side_button_and_the_window_does_not_fire(cx: &mut TestAppContext) {
+    let (w, cx) = mount(cx, json!({"next-pane": ["mouse4"]}));
+    let a = w.a.clone();
+    cx.update(|window, cx| crate::chrome::dialog::hotkey::open(&a, window, cx));
+    cx.run_until_parked();
+    press_on(cx, "recorder", BACK, Modifiers::none());
+    assert_eq!(w.focused(cx).as_deref(), Some(w.a.as_str()));
+    assert_eq!(w.hotkey(cx, &w.a), None, "mouse4 already belongs to next-pane");
+    press_on(cx, "recorder", FORWARD, Modifiers::none());
+    assert_eq!(w.hotkey(cx, &w.a).as_deref(), Some("mouse5"));
 }
