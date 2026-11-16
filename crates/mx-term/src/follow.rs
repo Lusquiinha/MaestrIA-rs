@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::links::resolve_link_path;
+use crate::links::{file_part, resolve_link_path};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkFollow {
@@ -38,7 +38,7 @@ pub fn follow_link(href: &str, base: Option<&str>) -> LinkFollow {
     if has_web_scheme(href) {
         return LinkFollow::OpenUrl(href.to_owned());
     }
-    let path = href.split('#').next().unwrap_or_default();
+    let path = file_part(href);
     if path.is_empty() {
         return LinkFollow::Nothing;
     }
