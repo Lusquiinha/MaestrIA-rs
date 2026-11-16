@@ -38,6 +38,9 @@ pub struct RfwView {
     editors: CodeEditors,
     widgets: WidgetStates,
     activation: Option<Subscription>,
+    /// Quantas vezes a tela foi montada: os testes do cache (`plugin_ui/surface.rs`).
+    #[cfg(test)]
+    pub(crate) renders: usize,
 }
 
 impl HasMenu for RfwView {
@@ -67,6 +70,8 @@ impl RfwView {
             editors: CodeEditors::default(),
             widgets: WidgetStates::default(),
             activation: None,
+            #[cfg(test)]
+            renders: 0,
         }
     }
 
@@ -145,6 +150,10 @@ impl RfwView {
 
 impl Render for RfwView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[cfg(test)]
+        {
+            self.renders += 1;
+        }
         if !cx.has_active_drag() {
             self.dragging = None;
         }

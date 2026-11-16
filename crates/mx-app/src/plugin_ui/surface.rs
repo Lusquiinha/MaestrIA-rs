@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui::{AnyElement, AnyView, App, AppContext, Entity, IntoElement, ParentElement, Styled, div};
+use gpui::{AnyElement, AnyView, App, AppContext, Entity, IntoElement, StyleRefinement, Styled, div};
 use mx_plugins::ui::view::PluginView;
 use mx_theme::{Theme, Typography};
 
@@ -208,13 +208,23 @@ impl Surface {
         });
     }
 
+    /// A tela do plugin com cache: ela só se redesenha quando muda (o `sync`
+    /// avisa) ou quando o tamanho muda. Sem ele, cada quadro de quem está em
+    /// volta (o spinner de uma sessão trabalhando num cabeçalho, outra aba que
+    /// mudou) montava e media a tela inteira de novo -- um console de 300
+    /// linhas a 60 quadros por segundo travava o app.
     pub fn element(&self) -> AnyElement {
+        let cached = |view: AnyView| view.cached(StyleRefinement::default().size_full()).into_any_element();
         if let Some(r) = &self.rfw {
-            return div().size_full().child(r.clone()).into_any_element();
+            return cached(r.clone().into());
         }
         if let Some(b) = &self.blocks {
-            return div().size_full().child(b.clone()).into_any_element();
+            return cached(b.clone().into());
         }
         div().size_full().into_any_element()
     }
 }
+
+#[cfg(test)]
+#[path = "surface_tests.rs"]
+mod tests;
