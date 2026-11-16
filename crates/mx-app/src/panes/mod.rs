@@ -8,6 +8,7 @@ mod header;
 mod header_cache;
 mod plugin_tiles;
 mod session_cards;
+mod suggestion_card;
 mod terminals;
 mod view_header;
 
@@ -58,6 +59,7 @@ pub struct PaneArea {
     headers: HashMap<String, Entity<header_cache::PaneHeader>>,
     changes_open: HashSet<String>,
     changes: HashMap<String, Entity<changes::ChangesView>>,
+    cards: HashMap<String, suggestion_card::CardState>,
 }
 
 impl PaneArea {
@@ -83,6 +85,7 @@ impl PaneArea {
             headers: HashMap::new(),
             changes_open: HashSet::new(),
             changes: HashMap::new(),
+            cards: HashMap::new(),
         }
     }
 
@@ -274,6 +277,7 @@ impl PaneArea {
                 Some(header.render(mx, &self.host, &cx.weak_entity()).into_any_element())
             }),
         };
+        let card = if kind == TabKind::Claude { self.suggestion_card(tab, mx, cx) } else { None };
         let body: AnyElement = match kind {
             TabKind::Claude | TabKind::Shell => match self.terminals.get(id) {
                 Some(view) => AnyView::from(view).cached(StyleRefinement::default().size_full()).into_any_element(),
@@ -354,7 +358,7 @@ impl PaneArea {
                     .min_h_0()
                     .flex()
                     .flex_row()
-                    .child(div().flex_1().min_w_0().h_full().child(body))
+                    .child(div().relative().flex_1().min_w_0().h_full().child(body).children(card))
                     .children(side),
             )
             .child(
@@ -534,6 +538,7 @@ impl Render for PaneArea {
             zoom: 0.0,
         };
         self.bodies.sync(&env, window, cx);
+        self.sync_cards(cx);
         self.follow_focus(window, cx);
         self.terminals.repaint_focus_changes(window, cx);
         let store = &self.host.read(cx).store;
