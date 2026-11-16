@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
+
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Line, Point};
 use alacritty_terminal::term::Term;
 use alacritty_terminal::term::cell::Flags;
 
-use crate::links::{link_at_chars, local_path};
+use crate::links::local_path;
 
 pub(crate) fn viewport_point<T>(term: &Term<T>, col: usize, row: usize) -> Option<Point> {
     let rows = term.screen_lines();
@@ -29,25 +31,31 @@ fn push_row<T>(term: &Term<T>, line: Line, out: &mut Vec<char>) {
     }
 }
 
-pub(crate) fn logical_line<T>(term: &Term<T>, point: Point) -> (Vec<char>, usize) {
-    let top = term.grid().topmost_line();
-    let bottom = term.grid().bottommost_line();
-    let mut first = point.line;
-    while first > top && wraps(term, first - 1) {
-        first -= 1;
+fn row_chars<T>(term: &Term<T>, line: Line) -> Vec<char> {
+    let mut row = Vec::with_capacity(term.columns());
+    push_row(term, line, &mut row);
+    row
+}
+
+/// Claude Code cuts a word wider than the row at the last column, without WRAPLINE (2.1.325, 2026-11-16).
+fn hard_break_indent(row: &[char], next: &[char]) -> Option<usize> {
+    let blank = |c: &&char| **c == ' ';
+    let tail = row.iter().rev().take_while(|c| !blank(c)).count();
+    let indent = next.iter().take_while(blank).count();
+    if tail == 0 || indent == 0 || indent >= next.len() {
+        return None;
     }
-    let mut last = point.line;
-    while last < bottom && wraps(term, last) {
-        last += 1;
-    }
-    let mut text = Vec::with_capacity(term.columns() * (1 + (last.0 - first.0) as usize));
-    let mut line = first;
-    while line <= last {
-        push_row(term, line, &mut text);
-        line += 1;
-    }
-    let column = (point.line.0 - first.0) as usize * term.columns() + point.column.0;
-    (text, column)
+    let head = next[indent..].iter().take_while(|c| !blank(c)).count();
+    (tail + head > next.len() - indent).then_some(indent)
+}
+
+fn joint<T>(term: &Term<T>, line: Line, row: &[char], next: &[char]) -> Option<usize> {
+    if wraps(term, line) { Some(0) } else { hard_break_indent(row, next) }
+}
+
+pub(crate) enum LinkText {
+    Hyperlink(String),
+    Plain(Vec<char>, usize),
 }
 
 pub(crate) fn hyperlink_at<T>(term: &Term<T>, point: Point) -> Option<String> {
@@ -60,13 +68,41 @@ pub(crate) fn hyperlink_at<T>(term: &Term<T>, point: Point) -> Option<String> {
     cell.hyperlink().map(|h| local_path(h.uri()))
 }
 
-pub(crate) fn link_at_cell<T>(term: &Term<T>, col: usize, row: usize, base: Option<&str>) -> Option<String> {
+pub(crate) fn link_text_at<T>(term: &Term<T>, col: usize, row: usize) -> Option<LinkText> {
     let point = viewport_point(term, col, row)?;
     if let Some(link) = hyperlink_at(term, point) {
-        return Some(link);
+        return Some(LinkText::Hyperlink(link));
     }
-    let (line, column) = logical_line(term, point);
-    link_at_chars(&line, column, base)
+    let (top, bottom) = (term.grid().topmost_line(), term.grid().bottommost_line());
+    let mut rows = VecDeque::from([row_chars(term, point.line)]);
+    let mut skips = VecDeque::new();
+    let mut first = point.line;
+    while first > top {
+        let prev = row_chars(term, first - 1);
+        let Some(skip) = joint(term, first - 1, &prev, &rows[0]) else { break };
+        rows.push_front(prev);
+        skips.push_front(skip);
+        first -= 1;
+    }
+    let mut last = point.line;
+    while last < bottom {
+        let next = row_chars(term, last + 1);
+        let Some(skip) = joint(term, last, &rows[rows.len() - 1], &next) else { break };
+        rows.push_back(next);
+        skips.push_back(skip);
+        last += 1;
+    }
+    let at = (point.line.0 - first.0) as usize;
+    let mut text = Vec::with_capacity(rows.len() * term.columns());
+    let mut column = None;
+    for (i, row) in rows.iter().enumerate() {
+        let skip = if i == 0 { 0 } else { skips[i - 1] };
+        if i == at {
+            column = point.column.0.checked_sub(skip).map(|c| text.len() + c);
+        }
+        text.extend_from_slice(&row[skip..]);
+    }
+    Some(LinkText::Plain(text, column?))
 }
 
 pub(crate) fn row_text<T>(term: &Term<T>, row: usize) -> String {

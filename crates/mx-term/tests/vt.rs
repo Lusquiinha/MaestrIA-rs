@@ -257,3 +257,101 @@ fn the_default_cursor_shape_yields_to_the_program() {
     t.set_cursor_shape(CursorShape::Underline);
     assert_eq!(kind(&t), Some(CursorKind::Underline));
 }
+
+const SCRATCHPAD_PNG: &str =
+    "/tmp/claude-1000/-home-usuario/00000000-0000-4000-8000-000000000000/scratchpad/cefis-crawler-11-13-vs-11-16.png";
+
+/// Bytes Claude Code 2.1.325 wrote for a long path in an 80-column pty (2026-11-16).
+fn claude_list_item(first: &str, rest: &str) -> String {
+    format!("\x1b[2C- \x1b[38;2;177;185;249m{first}\r\x1b[4C\x1b[1B{rest}\r\x1b[1B\x1b[39m")
+}
+
+fn hard_wrapped(cols: usize, path: &str) -> TerminalSession {
+    let t = term(cols as u16, 6, 100);
+    let (first, rest) = path.split_at(cols - 4);
+    t.feed(claude_list_item(first, rest).as_bytes());
+    t
+}
+
+fn deep_file(dir: &tempfile::TempDir, name: &str) -> String {
+    let deep = dir.path().join("scratchpad/um-diretorio-com-nome-bem-comprido");
+    std::fs::create_dir_all(&deep).unwrap();
+    let file = deep.join(name);
+    std::fs::write(&file, "x").unwrap();
+    file.display().to_string()
+}
+
+#[test]
+fn path_cut_by_claude_is_one_link_from_either_row() {
+    let t = hard_wrapped(80, SCRATCHPAD_PNG);
+    assert_eq!(t.row_text(0), format!("  - {}", &SCRATCHPAD_PNG[..76]));
+    assert_eq!(t.row_text(1), format!("    {}", &SCRATCHPAD_PNG[76..]));
+    for (col, row) in [(4, 0), (79, 0), (4, 1), (5, 1), (37, 1)] {
+        assert_eq!(t.link_at(col, row, None).as_deref(), Some(SCRATCHPAD_PNG), "({col},{row})");
+    }
+    assert_eq!(t.link_at(2, 1, None), None);
+    assert_eq!(t.link_at(50, 1, None), None);
+}
+
+#[test]
+fn existing_path_cut_over_three_rows_opens_whole() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = deep_file(&dir, "cefis-crawler-11-13-vs-11-16.png");
+    let t = term(30, 6, 100);
+    let (a, rest) = path.split_at(26);
+    let (b, c) = rest.split_at(26.min(rest.len() - 1));
+    t.feed(format!("\x1b[4C{a}\r\x1b[4C\x1b[1B{b}\r\x1b[4C\x1b[1B{c}").as_bytes());
+    for row in 0..3 {
+        assert_eq!(t.link_at(6, row, None).as_deref(), Some(path.as_str()), "row {row}");
+    }
+}
+
+#[test]
+fn missing_file_cut_right_after_an_existing_folder_is_the_whole_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("scratchpad");
+    std::fs::create_dir_all(&folder).unwrap();
+    let folder = folder.display().to_string();
+    let path = format!("{folder}/sumiu-cefis-crawler-11-13-vs-11-16.png");
+    let t = hard_wrapped(folder.len() + 4, &path);
+    assert_eq!(t.link_at(6, 0, None).as_deref(), Some(path.as_str()));
+    assert_eq!(t.link_at(6, 1, None).as_deref(), Some(path.as_str()));
+}
+
+#[test]
+fn short_path_on_one_row_is_a_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = deep_file(&dir, "a.png");
+    let t = term(200, 4, 100);
+    t.feed(claude_list_item(&path, "").as_bytes());
+    assert_eq!(t.link_at(8, 0, None).as_deref(), Some(path.as_str()));
+}
+
+#[test]
+fn prose_row_ending_at_the_last_column_is_not_glued_to_the_next() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("lib")).unwrap();
+    std::fs::write(dir.path().join("lib/store.dart"), "x").unwrap();
+    let base = dir.path().to_str();
+    let t = term(21, 4, 100);
+    t.feed(b"  mexi lib/store.dart\r\x1b[2C\x1b[1Bagora");
+    assert_eq!(t.row_text(1), "  agora");
+    assert_eq!(t.link_at(10, 0, base).as_deref(), Some("lib/store.dart"));
+    assert_eq!(t.link_at(3, 1, base), None);
+
+    let t = term(30, 4, 100);
+    t.feed(b"  veja https://x.dev/abcdefghi\r\x1b[2C\x1b[1Bagora sim");
+    assert_eq!(t.link_at(10, 0, None).as_deref(), Some("https://x.dev/abcdefghi"));
+    assert_eq!(t.link_at(3, 1, None), None);
+}
+
+#[test]
+fn unindented_next_row_is_not_joined() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = deep_file(&dir, "cefis-crawler.png");
+    let t = term(40, 4, 100);
+    let (first, rest) = path.split_at(40);
+    t.feed(format!("{first}\r\x1b[1B{rest}").as_bytes());
+    assert_eq!(t.link_at(2, 0, None), None);
+    assert_eq!(t.link_at(2, 1, None), None);
+}

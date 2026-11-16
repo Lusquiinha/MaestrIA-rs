@@ -19,6 +19,7 @@ use crate::events::{Fanout, Subscriber};
 use crate::ime::{TextInputGuard, TextOrigin};
 use crate::io::{self, ChildPoll, Feeder, LifeIo, LifeOwner, Port, Proxy, SharedTerm};
 use crate::keys::Mods;
+use crate::links::clickable_at_chars;
 use crate::mouse::{self, MouseAction, MouseButton};
 use crate::paste::paste_bytes;
 use crate::ptyd::{self, Ptyd};
@@ -682,7 +683,11 @@ impl TerminalSession {
     }
 
     pub fn link_at(&self, col: usize, row: usize, base: Option<&str>) -> Option<String> {
-        text::link_at_cell(&self.shared.term.lock(), col, row, base)
+        let found = text::link_text_at(&self.shared.term.lock(), col, row)?;
+        match found {
+            text::LinkText::Hyperlink(link) => Some(link),
+            text::LinkText::Plain(line, column) => clickable_at_chars(&line, column, base),
+        }
     }
 }
 

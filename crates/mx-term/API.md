@@ -49,7 +49,8 @@ leftovers (full PTY buffer) are flushed by the I/O thread.
   `FindSession` (per open bar): `search(term, query, near_line)`, `refresh(term)` (current hit stays put),
   `step(term, ±1)` (wraps), `clear`, `hits`, `index`, `current`, `counter()` (`2 de 3`, `Nenhum`, `+` at `FIND_LIMIT`).
 - Links: `link_at(col, row, base_cwd) -> Option<String>` — OSC 8 of the cell (`file://` → path) else the
-  heuristic link of the logical (wrapped) line.
+  heuristic link of the line joined across soft wraps and Claude's mid-word cuts; an absolute path to a
+  missing file is still returned, so following it raises the "não existe" banner.
 
 ## Port — `TermRegistry` (implements `mx_core::ports::TermFactory`)
 - `new(palette)`, `on_exit(Arc<dyn Fn(&str tab_id, Option<i32>)>)` — the app posts

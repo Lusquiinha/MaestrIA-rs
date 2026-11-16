@@ -485,7 +485,10 @@ Algorithm:
 4. `bare = trimTail(token)`; `path = trimTail(atLine.group1(bare) ?? bare)`.
 5. If path has no `/` and is not markdown (`.md`, `.markdown`, `.mdx`, case-insensitive
    on basename) → null.
-6. If `File(resolveLinkPath(path.split('#')[0], base)).exists` is false → null.
+6. If `File(resolveLinkPath(path.split('#')[0], base)).exists` is false → null, except on a click
+   (`clickable_at_chars`) when the path is written absolute (`/` or `~/`), has 2+ segments, its last
+   segment has an extension (1–8 alphanumerics) and its top-level folder exists: then it is returned,
+   and `followLink` shows the missing-file banner.
 7. Return `path` (relative form, not resolved).
 
 `_urlAt(line, column)`:
@@ -501,11 +504,17 @@ Algorithm:
 `resolveLinkPath(path, base)`: expand `~`/`~/` with `$HOME` (avoiding `//`); absolute
 → as is; else `base/path` if base non-empty else path.
 
-`linkAtCell(terminal, cell, base)`: null if `cell.y` out of buffer. Find the logical
-line: walk up while line `isWrapped`, down while next `isWrapped`. Build text cell by
-cell for full width (`cols`) of each physical line; codepoint 0 **or > 0xFFFF** →
-space (keeps column ↔ string index aligned). Column = `(cell.y-first)*cols + cell.x`.
-Delegate to `linkAt`.
+`linkAtCell(terminal, cell, base)`: null if `cell.y` out of buffer. Find the line: walk up
+and down while a row joins the next. A row joins the next when the terminal wrapped it
+(`isWrapped`, nothing dropped) or when Claude cut a word mid-word: the row ends with a
+non-blank cell, the next row starts with an indent of 1..cols-1 blank cells, and the word
+crossing the break (non-blank tail of the row + non-blank head of the next after its indent)
+is longer than `cols - indent`; the indent is dropped. Measured with Claude Code 2.1.325 on
+2026-11-16: a word wider than the row is cut at the last column and continued on the next row
+at the item's indent, without `isWrapped`. Build text cell by cell for full width of each
+row; codepoint 0 **or > 0xFFFF** → space. Column = index of the cell in that text; a click on
+a dropped indent cell → null. The text is read under the terminal lock and the file checks run
+after it is released. Delegate to `linkAt` (click rule of step 6).
 
 #### OSC 8 links (`TermLinks`)
 
