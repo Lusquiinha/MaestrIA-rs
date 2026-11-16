@@ -1,4 +1,4 @@
-use mx_core::model::ClaudeStatus;
+use mx_core::model::{AgentInfo, ClaudeStatus};
 use mx_core::persist::Layout;
 use serde_json::{Value, json};
 
@@ -152,4 +152,30 @@ fn a_shell_hibernated_while_away_shows_its_screen_and_starts_a_fresh_shell_there
     let log = rig.terms.log("tabold_1");
     assert_eq!(log.remarks, [crate::SHELL_SLEPT]);
     assert_eq!(log.shells, [cwd]);
+}
+
+#[test]
+fn a_session_the_claude_daemon_runs_in_the_background_is_attached() {
+    let mut rig = Rig::new();
+    rig.s.agents = vec![
+        AgentInfo::from_json(&json!({"id": "47b75295", "pid": 711982, "kind": "background", "sessionId": "sess-1"})).unwrap(),
+    ];
+    let p = pane(&mut rig, "claude", "tabold_3");
+    restore(&mut rig, vec![p]);
+    let id = rig.s.tabs().first().unwrap().id.clone();
+    assert_eq!(rig.terms.log(&id).commands[0], "claude attach '47b75295'");
+}
+
+#[test]
+fn a_background_session_is_attached_before_the_agents_poll_lists_it() {
+    let mut rig = Rig::new();
+    rig.transcript("other");
+    let sessions = rig.dir.path().join("sessions");
+    std::fs::create_dir_all(&sessions).unwrap();
+    std::fs::write(sessions.join("711982.json"), r#"{"pid":711982,"sessionId":"sess-1","kind":"bg","jobId":"47b75295"}"#).unwrap();
+    std::fs::write(sessions.join("2946068.json"), r#"{"pid":2946068,"sessionId":"sess-2","kind":"interactive"}"#).unwrap();
+    let p = pane(&mut rig, "claude", "tabold_3");
+    restore(&mut rig, vec![p]);
+    let id = rig.s.tabs().first().unwrap().id.clone();
+    assert_eq!(rig.terms.log(&id).commands[0], "claude attach '47b75295'");
 }

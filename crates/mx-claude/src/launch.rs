@@ -142,6 +142,7 @@ pub struct ClaudeLaunch {
     pub brief: Option<String>,
     pub project: Option<String>,
     pub resume_id: Option<String>,
+    pub attach_job: Option<String>,
     pub prompt: Option<String>,
 }
 
@@ -161,6 +162,9 @@ impl ClaudeLaunch {
     }
 
     pub fn command_line(&self) -> String {
+        if let Some(job) = &self.attach_job {
+            return format!("claude attach {}", sh_quote(job));
+        }
         let mut parts = vec![
             "claude".to_owned(),
             format!("--mcp-config {}", sh_quote(&self.mcp_config)),
@@ -180,6 +184,9 @@ impl ClaudeLaunch {
     }
 
     pub fn display_line(&self) -> String {
+        if self.attach_job.is_some() {
+            return self.command_line();
+        }
         let port = self.port;
         let mut out = format!(
             "claude --mcp-config <tarefas :{port}> --name {} --settings <hooks :{port}>",

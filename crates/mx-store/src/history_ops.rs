@@ -66,6 +66,14 @@ impl Store {
             .find(|a| a.session_id.as_deref() == Some(sid) && a.pid.is_none_or(|p| !ours.contains(&p)))
     }
 
+    pub(crate) fn background_job(&self, sid: &str) -> Option<String> {
+        if let Some(job) = self.elsewhere(sid).filter(|a| a.kind == "background").and_then(|a| a.id.clone()) {
+            return Some(job);
+        }
+        let sessions = self.opts.chat_home.parent()?.join("sessions");
+        mx_sys::agents::background_job_on_disk(&sessions, sid)
+    }
+
     pub fn standing_of(&self, chat: &ChatEntry) -> ChatStanding {
         let sid = chat.session_id.as_str();
         if self.tab_holding(sid).is_some() {

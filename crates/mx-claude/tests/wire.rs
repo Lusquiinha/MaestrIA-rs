@@ -74,6 +74,7 @@ fn launch_puts_mcp_config_first_and_the_prompt_last() {
         brief: Some("  briefing  ".into()),
         project: Some("TASK#1".into()),
         resume_id: Some("abc".into()),
+        attach_job: None,
         prompt: Some(" faz isso ".into()),
     };
     assert_eq!(
@@ -106,6 +107,7 @@ fn a_prompt_that_looks_like_an_option_stays_the_positional_prompt() {
         brief: None,
         project: None,
         resume_id: None,
+        attach_job: None,
         prompt: Some("- item um\n- item dois".into()),
     };
     assert!(
@@ -113,4 +115,16 @@ fn a_prompt_that_looks_like_an_option_stays_the_positional_prompt() {
             .command_line()
             .ends_with("--settings '{}' -- '- item um\n- item dois'")
     );
+}
+
+#[test]
+fn a_session_living_in_the_background_is_attached_instead_of_resumed() {
+    let launch = mx_claude::ClaudeLaunch {
+        name: "crc".into(),
+        resume_id: Some("47b75295-a5e9".into()),
+        attach_job: Some("47b75295".into()),
+        ..Default::default()
+    };
+    assert_eq!(launch.command_line(), "claude attach '47b75295'");
+    assert_eq!(launch.display_line(), "claude attach '47b75295'");
 }

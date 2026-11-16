@@ -172,3 +172,14 @@ async fn a_hung_poll_is_abandoned_after_the_timeout_and_polling_resumes() {
     settle().await;
     assert_eq!(hung.calls.load(Ordering::SeqCst), 2);
 }
+
+#[test]
+fn only_a_background_record_of_that_session_names_a_job() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("1.json"), r#"{"sessionId":"a","kind":"interactive"}"#).unwrap();
+    std::fs::write(dir.path().join("2.json"), r#"{"sessionId":"b","kind":"bg","jobId":"bbbb"}"#).unwrap();
+    std::fs::write(dir.path().join("2.key"), "x").unwrap();
+    assert_eq!(mx_sys::agents::background_job_on_disk(dir.path(), "b").as_deref(), Some("bbbb"));
+    assert_eq!(mx_sys::agents::background_job_on_disk(dir.path(), "a"), None);
+    assert_eq!(mx_sys::agents::background_job_on_disk(&dir.path().join("nope"), "b"), None);
+}

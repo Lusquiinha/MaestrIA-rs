@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -15,6 +16,20 @@ pub const TIMEOUT: Duration = Duration::from_secs(20);
 
 pub fn parse_agents(stdout: &str) -> Option<Vec<AgentInfo>> {
     AgentInfo::list_from_stdout(stdout)
+}
+
+pub fn background_job_on_disk(sessions_dir: &Path, session_id: &str) -> Option<String> {
+    std::fs::read_dir(sessions_dir).ok()?.flatten().find_map(|entry| {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            return None;
+        }
+        let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).ok()?).ok()?;
+        if v.get("kind")?.as_str()? != "bg" || v.get("sessionId")?.as_str()? != session_id {
+            return None;
+        }
+        v.get("jobId").and_then(serde_json::Value::as_str).map(str::to_owned)
+    })
 }
 
 pub type AgentList = Arc<Vec<AgentInfo>>;

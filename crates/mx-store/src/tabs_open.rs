@@ -165,6 +165,7 @@ impl Store {
             .feature_or_hotfix_id
             .as_deref()
             .and_then(|f| self.feature_by_id(f));
+        let attach_job = resume_id.as_deref().and_then(|sid| self.background_job(sid));
         let hooks = &self.p.hooks;
         let launch = ClaudeLaunch {
             port: hooks.port(),
@@ -174,6 +175,7 @@ impl Store {
             brief: feature.map(|f| f.brief.clone()),
             project: feature.map(|f| f.name.clone()),
             resume_id,
+            attach_job,
             prompt,
         };
         if let Some(term) = self.terms.get_mut(id) {
