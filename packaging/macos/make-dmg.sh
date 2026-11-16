@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #   ./packaging/macos/make-dmg.sh              # compila (arm64 + x86_64) e empacota
 #   ./packaging/macos/make-dmg.sh --no-build   # só empacota o que já está em target/
+#   TARGET_DIR=... make-dmg.sh --no-build      # idem, com os binários em outro lugar (o CI)
 set -euo pipefail
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -15,7 +16,7 @@ REVISION=$(sed -n '/^\[package.metadata.deb\]/,/^\[/s/^revision *= *"\([^"]*\)".
 REVISION="${REVISION:-1}"
 FULL="${VERSION}-${REVISION}"
 export MAESTRIA_VERSION="${MAESTRIA_VERSION:-$VERSION}"
-TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')
+TARGET_DIR="${TARGET_DIR:-$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')}"
 
 if [ "${1:-}" != "--no-build" ]; then
   command -v cargo-bundle >/dev/null || { echo "cargo-bundle não instalado -- cargo install cargo-bundle" >&2; exit 1; }
