@@ -6,7 +6,8 @@ use gpui::{
     prelude::FluentBuilder, px,
 };
 use mx_core::model::{FeatureOrHotfix, FeatureOrHotfixKind, Folder, Tab, Workspace};
-use mx_store::Store;
+use mx_core::model::sidebar::RowKey;
+use mx_store::{RowPlace, Store};
 
 use crate::app::host::{StoreHost, update_store};
 use crate::app::icons::{Icon, icon};
@@ -26,6 +27,8 @@ pub struct Ctx<'a> {
     pub sidebar: WeakEntity<Sidebar>,
     pub hover: &'a Hover,
     pub now: Instant,
+    pub row_hint: Option<&'a mx_store::DropHint>,
+    pub lifted: Option<&'a RowPlace>,
 }
 
 impl Ctx<'_> {
@@ -128,6 +131,7 @@ impl Ctx<'_> {
                 "O que fazer com esse workspace",
                 menu_on(Target::Workspace(w.id.clone())),
             )));
+        let header = self.row_drag(header, RowPlace::root(RowKey::Workspace(w.id.clone())), w.name.clone(), true);
         let mut col = div().flex().flex_col().child(header);
         if !collapsed {
             let mut kids: Vec<AnyElement> = Vec::new();
@@ -141,15 +145,13 @@ impl Ctx<'_> {
                 kids.extend(folders.iter().filter_map(|f| self.folder(f, Some(w))));
             }
             if folders.is_empty() && parent.is_none() {
-                kids.push(
-                    div()
-                        .px(px(12.))
-                        .py(px(8.))
-                        .text_size(px(11.5))
-                        .text_color(mx.fg_faint)
-                        .child("Arraste uma pasta pra cá")
-                        .into_any_element(),
-                );
+                let hint = div()
+                    .px(px(12.))
+                    .py(px(8.))
+                    .text_size(px(11.5))
+                    .text_color(mx.fg_faint)
+                    .child("Arraste uma pasta pra cá");
+                kids.push(self.empty_workspace_drop(hint, &w.id).into_any_element());
             }
             let line = w.tint.map(|t| mx.tint(t)).unwrap_or(mx.border);
             if !kids.is_empty() {
@@ -269,6 +271,8 @@ impl Ctx<'_> {
                 "O que fazer com essa pasta",
                 menu_on(target),
             )));
+        let place = RowPlace { row: RowKey::Folder(f.root.clone()), within: within.map(str::to_owned) };
+        let header = self.row_drag(header, place, f.name.clone(), false);
         let mut col = div().flex().flex_col().child(header);
         if !collapsed {
             col = col.child(nest(20., color.opacity(0.35), self.folder_body(f, &tabs, within)));

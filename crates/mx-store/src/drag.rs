@@ -4,6 +4,15 @@ use crate::changes::Areas;
 use crate::store::Store;
 use crate::workspaces::RowPlace;
 
+/// Where a dragged sidebar row would land if dropped now: next to `onto`
+/// (on the side it ends up, `below` or above) or inside that workspace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DropHint {
+    pub onto: RowPlace,
+    pub into: bool,
+    pub below: bool,
+}
+
 fn slide(list: &mut Vec<String>, from: Option<usize>, to: Option<usize>) -> bool {
     let (Some(from), Some(to)) = (from, to) else {
         return false;
@@ -86,6 +95,35 @@ impl Store {
                 }
             }
         }
+    }
+
+    /// The hint for `from` hovering `onto` at `y_frac` (0 top, 1 bottom) of
+    /// its header. Only a folder goes into a workspace, and only through the
+    /// middle half of the header (`accepts_into`); the edges reorder.
+    pub fn drop_hint(&self, from: &RowPlace, onto: &RowPlace, accepts_into: bool, y_frac: f32) -> Option<DropHint> {
+        if from == onto {
+            return None;
+        }
+        let into = accepts_into && matches!(from.row, RowKey::Folder(_)) && y_frac > 0.25 && y_frac < 0.75;
+        self.can_drop(from, onto, into).then(|| DropHint {
+            onto: onto.clone(),
+            into,
+            below: !into && self.lands_below(from, onto),
+        })
+    }
+
+    /// Sliding within the same lane puts a row coming from above *after* the
+    /// target. From another lane it takes the target's slot, above it.
+    fn lands_below(&self, from: &RowPlace, onto: &RowPlace) -> bool {
+        if from.within != onto.within {
+            return false;
+        }
+        let order: Vec<String> = match &onto.within {
+            None => self.sidebar_rows().iter().map(RowKey::key).collect(),
+            Some(ws) => self.folders_of(ws).iter().map(|f| RowKey::Folder(f.root.clone()).key()).collect(),
+        };
+        let at = |p: &RowPlace| order.iter().position(|k| *k == p.row.key());
+        matches!((at(from), at(onto)), (Some(a), Some(b)) if a < b)
     }
 
     pub fn has_hits_in_workspace(&self, ws: &str) -> bool {
