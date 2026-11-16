@@ -3,7 +3,7 @@ use std::rc::Rc;
 use gpui::{
     AnyElement, App, AppContext, Context, Entity, IntoElement, PathPromptOptions, Render, WeakEntity, Window,
 };
-use mx_core::model::FeatureOrHotfixKind;
+use mx_core::model::{FeatureOrHotfixKind, SuggestionEnd};
 use mx_store::{DocPlace, NewTask};
 
 use crate::app::menus::{Place, folder_or_loose};
@@ -196,21 +196,49 @@ pub fn new_task(root: &str, feature: Option<String>, window: &mut Window, cx: &m
         .unwrap_or_default();
     let root = root.to_owned();
     form(specs::new_task(&place), window, cx, move |r, _, cx| {
-        let Some(task_id) = filled(&r, 0) else { return };
-        let task = NewTask {
-            folder_root: root.clone(),
-            task_id,
-            branch_pattern: field(&r, 1),
-            dir_pattern: field(&r, 2),
-            base_ref: filled(&r, 3),
-            setup_command: filled(&r, 4),
-            feature: feature.clone(),
-            prompt: None,
-            select: true,
-            reply: None,
-        };
+        let Some(task) = task_of(&r, &root, feature.clone(), None) else { return };
         ui::act(cx, |s| s.new_task(task));
     });
+}
+
+/// The "iniciar com worktree" of a suggested task: the same form, and the new session starts
+/// with the suggestion's prompt. The suggestion is settled once the form is sent.
+pub fn suggestion_task(tab: &str, task: &str, window: &mut Window, cx: &mut App) {
+    let store = ui::store(cx);
+    let (Some(t), Some(s)) = (store.tab(tab), store.pending_suggestion(tab, task)) else { return };
+    let (root, feature, prompt) = (t.folder_root.clone(), t.feature_or_hotfix_id.clone(), s.prompt.clone());
+    let place = store.find_folder(&root).map(|f| f.name.clone()).unwrap_or_default();
+    let mut spec = specs::new_task(&place);
+    if !s.title.is_empty() {
+        spec.title = format!("Nova task: {}", s.title).into();
+    }
+    let (tab, task) = (tab.to_owned(), task.to_owned());
+    form(spec, window, cx, move |r, _, cx| {
+        let Some(job) = task_of(&r, &root, feature.clone(), Some(prompt.clone())) else { return };
+        ui::act(cx, |s| {
+            if s.pending_suggestion(&tab, &task).is_none() {
+                s.show_banner(crate::app::suggestions::WITHDRAWN);
+                return;
+            }
+            s.new_task(job);
+            s.settle_suggestion(&tab, &task, SuggestionEnd::Started);
+        });
+    });
+}
+
+fn task_of(r: &FormResult, root: &str, feature: Option<String>, prompt: Option<String>) -> Option<NewTask> {
+    Some(NewTask {
+        folder_root: root.to_owned(),
+        task_id: filled(r, 0)?,
+        branch_pattern: field(r, 1),
+        dir_pattern: field(r, 2),
+        base_ref: filled(r, 3),
+        setup_command: filled(r, 4),
+        feature,
+        prompt,
+        select: true,
+        reply: None,
+    })
 }
 
 pub fn launcher_form(editing: Option<String>, then_open: Option<Place>, window: &mut Window, cx: &mut App) {

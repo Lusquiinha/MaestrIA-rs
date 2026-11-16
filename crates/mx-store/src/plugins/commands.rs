@@ -112,6 +112,13 @@ impl Store {
         self.plugin.registry.as_ref()?.suggestion_takers().into_iter().next().map(|p| p.id)
     }
 
+    /// The tracker plugin's name and the label of its switch ("criar a task no Wiboor").
+    pub fn suggestion_taker_label(&self) -> Option<(String, String)> {
+        let p = self.plugin.registry.as_ref()?.suggestion_takers().into_iter().next()?;
+        let label = p.manifest.as_ref()?.suggestions.clone()?;
+        Some((p.name().to_owned(), label))
+    }
+
     pub fn start_suggestion_in_plugin(&mut self, tab: &str, task: &str, choice: SuggestionChoice) -> bool {
         let (Some(r), Some(plugin)) = (self.plugin.registry.clone(), self.suggestion_taker()) else {
             return false;

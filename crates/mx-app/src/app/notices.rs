@@ -36,9 +36,19 @@ pub fn list_views(store: &Store) -> Vec<NoticeView> {
     store.notices().iter().map(|n| view_of(store, n, &now)).collect()
 }
 
+/// Opening a "sugeriu" notice also opens the suggestion itself, while it is still pending.
+fn open(id: u64, cx: &mut App) {
+    let suggestion = ui::store(cx).suggestion_of(id).map(|s| s.id.clone());
+    let tab = ui::store(cx).notice(id).map(|n| n.notice.tab_id.clone());
+    ui::act(cx, |s| s.open_notice(id));
+    if let (Some(task), Some(tab)) = (suggestion, tab) {
+        crate::app::suggestions::details(&tab, &task, cx);
+    }
+}
+
 pub fn toast_handlers() -> RowHandlers {
     RowHandlers {
-        on_open: Rc::new(|id, _, cx| ui::act(cx, |s| s.open_notice(id))),
+        on_open: Rc::new(|id, _, cx| open(id, cx)),
         on_close: Rc::new(|id, _, cx| ui::act(cx, |s| s.dismiss_toast(id))),
         on_hover: Some(Rc::new(|(id, on), _, cx| ui::act(cx, |s| s.hold_toast(id, on)))),
     }
@@ -61,7 +71,7 @@ pub fn center_props() -> NoticeCenterProps {
                 ui::act(cx, Store::close_notices)
             }
         }),
-        on_open: Rc::new(|id, _, cx| ui::act(cx, |s| s.open_notice(id))),
+        on_open: Rc::new(|id, _, cx| open(id, cx)),
         on_dismiss: Rc::new(|id, _, cx| ui::act(cx, |s| s.dismiss_notice(id))),
     }
 }

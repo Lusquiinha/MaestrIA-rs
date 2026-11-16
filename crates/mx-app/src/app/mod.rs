@@ -16,6 +16,7 @@ pub mod ports;
 pub mod restart;
 pub mod root;
 pub mod settings;
+pub mod suggestions;
 pub mod theme;
 pub mod tooltip;
 pub mod ui;
