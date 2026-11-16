@@ -60,6 +60,7 @@ pub use tabs_open::{ClaudeSpec, HIBERNATED_AT_BIRTH};
 pub use tabs_ops::{PaneDrop, Reveal};
 pub use timers::TimerKey;
 pub use tint::{GROUP_TINTS, TabTint};
+pub use drag::DropHint;
 pub use workspaces::{EmptyName, RowPlace};
 pub use tabs_ops::hotkey_label;
 mod updates;

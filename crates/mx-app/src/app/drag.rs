@@ -3,6 +3,8 @@ use gpui::{
     Pixels, Point, Render, Stateful, StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder, px, svg,
 };
 
+use mx_store::RowPlace;
+
 use crate::app::host::{StoreHost, update_store};
 
 use crate::app::theme::Mx;
@@ -13,6 +15,13 @@ pub struct DraggedTab {
     pub title: String,
     pub folder_root: String,
     pub from_tray: bool,
+}
+
+/// A folder or workspace header picked up in the sidebar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DraggedRow {
+    pub place: RowPlace,
+    pub title: String,
 }
 
 pub const GHOST_ANCHOR: (f32, f32) = (18., 17.);

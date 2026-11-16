@@ -1,5 +1,6 @@
 mod active_tray;
 pub mod glyph;
+mod row_drag;
 mod search;
 mod tab_row;
 mod trays;
@@ -37,6 +38,8 @@ pub struct Sidebar {
     search_marked: Option<std::ops::Range<usize>>,
     search_bounds: gpui::Bounds<gpui::Pixels>,
     hover: Hover,
+    row_hint: Option<mx_store::DropHint>,
+    lifted: Option<mx_store::RowPlace>,
 }
 
 pub fn no_hits_text(query: &str, filters: usize) -> String {
@@ -65,6 +68,8 @@ impl Sidebar {
             search_marked: None,
             search_bounds: gpui::Bounds::default(),
             hover: Hover::default(),
+            row_hint: None,
+            lifted: None,
         }
     }
 
@@ -97,6 +102,10 @@ impl Sidebar {
         let now = store.revealed().map(|r| (r.tab_id.clone(), r.within.clone()));
         let fresh = now.is_some() && now != self.revealed;
         self.revealed = now;
+        if !cx.has_active_drag() {
+            self.row_hint = None;
+            self.lifted = None;
+        }
         let ctx = Ctx {
             store,
             mx,
@@ -105,6 +114,8 @@ impl Sidebar {
             sidebar: cx.weak_entity(),
             hover: &self.hover,
             now: at,
+            row_hint: self.row_hint.as_ref(),
+            lifted: self.lifted.as_ref(),
         };
         let filtering = store.filtering();
         let mut items: Vec<AnyElement> = Vec::new();

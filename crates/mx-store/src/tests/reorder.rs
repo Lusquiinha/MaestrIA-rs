@@ -183,3 +183,32 @@ fn r18_a_root_folder_on_a_header_edge_reorders() {
     assert_eq!(members(&rig, &ws), ["api"]);
     assert_eq!(rows(&rig), ["ws:cefis", "solta"]);
 }
+
+#[test]
+fn r19_the_stripe_goes_under_a_target_reached_from_above() {
+    let mut rig = folders(&["um", "dois", "tres"]);
+    let down = rig.s.drop_hint(&root("um"), &root("tres"), false, 0.5).unwrap();
+    assert!(!down.into && down.below);
+    let up = rig.s.drop_hint(&root("tres"), &root("um"), false, 0.5).unwrap();
+    assert!(!up.into && !up.below);
+    assert_eq!(rig.s.drop_hint(&root("um"), &root("um"), false, 0.5), None);
+    let ws = section(&mut rig, &["dois", "tres"]);
+    let inner = rig.s.drop_hint(&inside("dois", &ws), &inside("tres", &ws), false, 0.5).unwrap();
+    assert!(inner.below);
+    let out = rig.s.drop_hint(&inside("tres", &ws), &root("um"), false, 0.5).unwrap();
+    assert!(!out.below);
+}
+
+#[test]
+fn r20_only_the_middle_of_a_header_takes_a_folder_in() {
+    let mut rig = folders(&["solta", "api", "web"]);
+    let a = section_named(&mut rig, "a", &["api"]);
+    let b = section_named(&mut rig, "b", &["web"]);
+    let middle = rig.s.drop_hint(&root("solta"), &ws_row(&a), true, 0.5).unwrap();
+    assert!(middle.into);
+    let edge = rig.s.drop_hint(&root("solta"), &ws_row(&a), true, 0.1).unwrap();
+    assert!(!edge.into);
+    let ws_over_ws = rig.s.drop_hint(&ws_row(&b), &ws_row(&a), true, 0.5).unwrap();
+    assert!(!ws_over_ws.into);
+    assert_eq!(rig.s.drop_hint(&inside("api", &a), &ws_row(&a), true, 0.5), None);
+}
