@@ -473,3 +473,24 @@ async fn tint_colors_the_tab_shows_in_the_list_and_null_clears_it() {
     rpc(&mut rig, &create, "session.tint", json!({"tabId": id, "tint": null})).await.unwrap();
     assert_eq!(rig.t(&id).tint, None);
 }
+
+#[tokio::test]
+async fn an_idle_claude_lists_its_prompt_suggestion_and_its_background_agents() {
+    let mut rig = Rig::new();
+    rig.s1();
+    let id = claude(&mut rig, "c1");
+    rig.terms.edit(&id, |l| l.prompt_suggestion = Some("roda os testes".into()));
+    let p = with(&[]);
+    let row = |v: Value| v.as_array().unwrap().iter().find(|s| s["id"] == json!("c1")).unwrap().clone();
+    rig.tm(&id).hooks.status = ClaudeStatus::Ready;
+    let fresh = row(rpc(&mut rig, &p, "sessions.list", json!({})).await.unwrap());
+    assert_eq!(fresh["promptSuggestion"], Value::Null);
+    rig.tm(&id).hooks.status = ClaudeStatus::Idle;
+    rig.tm(&id).hooks.forks_out = 2;
+    let resting = row(rpc(&mut rig, &p, "sessions.list", json!({})).await.unwrap());
+    assert_eq!(resting["promptSuggestion"], json!("roda os testes"));
+    assert_eq!(resting["backgroundAgents"], json!(2));
+    rig.tm(&id).hooks.status = ClaudeStatus::Working;
+    let busy = row(rpc(&mut rig, &p, "sessions.list", json!({})).await.unwrap());
+    assert_eq!(busy["promptSuggestion"], Value::Null);
+}

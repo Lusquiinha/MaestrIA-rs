@@ -223,6 +223,8 @@ fn session(id: &str, owner: Option<&str>, tag: Option<&str>) -> SessionJson {
         hibernated: false,
         exited: false,
         tint: None,
+        prompt_suggestion: None,
+        background_agents: 0,
         on_screen: true,
         focused: false,
         started_at: "2026-09-23T10:00:00.000".into(),

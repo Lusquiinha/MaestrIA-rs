@@ -24,6 +24,8 @@ pub struct SessionJson {
     pub hibernated: bool,
     pub exited: bool,
     pub tint: Option<Tint>,
+    pub prompt_suggestion: Option<String>,
+    pub background_agents: i64,
     pub on_screen: bool,
     pub focused: bool,
     pub started_at: String,
@@ -78,6 +80,8 @@ impl SessionJson {
         m.insert("hibernated".into(), Value::from(self.hibernated));
         m.insert("exited".into(), Value::from(self.exited));
         m.insert("tint".into(), self.tint.map_or(Value::Null, |t| Value::from(t.name())));
+        m.insert("promptSuggestion".into(), opt(&self.prompt_suggestion));
+        m.insert("backgroundAgents".into(), Value::from(self.background_agents));
         m.insert("onScreen".into(), Value::from(self.on_screen));
         m.insert("focused".into(), Value::from(self.focused));
         m.insert("startedAt".into(), Value::from(self.started_at.clone()));
