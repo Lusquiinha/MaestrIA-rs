@@ -1,11 +1,11 @@
-use gpui::{App, Entity, KeyContext, KeyDownEvent, Window};
+use gpui::{App, Entity, KeyContext, KeyDownEvent, MouseDownEvent, Window};
 use mx_core::layout::DropSide;
 use mx_plugins::Plugins;
 use mx_plugins::chord::KeyPress;
 use mx_store::{ClaudeSpec, DocPlace, How, Store};
 
 use super::action::Action;
-use super::chord::{LINUX, is_editing_key, may_be_shortcut, press_of, terminal_key};
+use super::chord::{LINUX, is_editing_key, may_be_shortcut, press_of, press_of_mouse, terminal_key};
 use super::map::Keymap;
 use crate::app::host::{StoreHost, update_store};
 
@@ -209,7 +209,17 @@ pub fn focus_from(stack: &[KeyContext]) -> Focus {
 
 pub fn on_key_down(host: &Entity<StoreHost>, ev: &KeyDownEvent, window: &Window, cx: &mut App) -> Outcome {
     let Some(p) = press_of(&ev.keystroke) else { return Outcome::Pass };
-    if crate::rfw_view::plugin_key_claimed(&window.context_stack(), &p).is_some() {
+    dispatch(host, p, window, cx)
+}
+
+pub fn on_mouse_down(host: &Entity<StoreHost>, ev: &MouseDownEvent, window: &Window, cx: &mut App) -> Outcome {
+    let Some(p) = press_of_mouse(ev.button, ev.modifiers) else { return Outcome::Pass };
+    dispatch(host, p, window, cx)
+}
+
+fn dispatch(host: &Entity<StoreHost>, p: KeyPress, window: &Window, cx: &mut App) -> Outcome {
+    let keyboard = !matches!(p.key, mx_plugins::chord::Key::Mouse(_));
+    if keyboard && crate::rfw_view::plugin_key_claimed(&window.context_stack(), &p).is_some() {
         return Outcome::Pass;
     }
     if !may_be_shortcut(&p) {

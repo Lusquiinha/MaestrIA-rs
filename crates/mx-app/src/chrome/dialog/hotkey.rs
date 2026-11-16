@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use gpui::{
     AnyElement, App, AppContext, Context, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, ParentElement,
-    Render, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
+    MouseDownEvent, Render, SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 
 use super::frame::alert;
@@ -92,6 +92,12 @@ impl HotkeyDialog {
         self.press(press, cx);
         cx.stop_propagation();
     }
+
+    fn mouse_down(&mut self, ev: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        let Some(press) = crate::keymap::recorded_mouse(ev.button, ev.modifiers) else { return };
+        self.press(press, cx);
+        cx.stop_propagation();
+    }
 }
 
 impl Render for HotkeyDialog {
@@ -120,6 +126,7 @@ impl Render for HotkeyDialog {
             .key_context("HotkeyRecorder")
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::key_down))
+            .capture_any_mouse_down(cx.listener(Self::mouse_down))
             .flex()
             .flex_col()
             .child(div().text_size(px(12.)).text_color(hsla(t.fg_dim)).child(explain(self.current.as_deref())))

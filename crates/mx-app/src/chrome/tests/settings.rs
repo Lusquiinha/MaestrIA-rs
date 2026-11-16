@@ -95,3 +95,34 @@ fn recorder_ignores_modifiers_rejects_reserved_and_binds_valid_chords(cx: &mut T
     );
     assert!(d.read_with(cx, |d, _| d.recording().is_none()));
 }
+
+#[gpui::test]
+fn the_recorder_takes_a_side_mouse_button_pressed_on_the_card(cx: &mut TestAppContext) {
+    let log: Log = Rc::default();
+    let l2 = log.clone();
+    let validate = Rc::new(|p: &KeyPress| crate::keymap::check_chord(p));
+    let (d, cx) = host(cx, move |_, cx| {
+        cx.new(|cx| SettingsDialog::new(settings_data(), Section::Shortcuts, validate, move |a, _, _| l2.borrow_mut().push(a), cx))
+    });
+    click(cx, "keycap:F2");
+    let back = gpui::MouseButton::Navigate(gpui::NavigationDirection::Back);
+    let card = cx.debug_bounds("settings").unwrap();
+    cx.simulate_mouse_down(card.center(), back, gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        log.borrow().last(),
+        Some(&SettingsAction::Bind { action: "rename".into(), chord: "mouse4".into(), replacing: Some("f2".into()) })
+    );
+    assert!(d.read_with(cx, |d, _| d.recording().is_none()));
+}
+
+#[gpui::test]
+fn a_side_mouse_button_outside_a_recording_does_nothing(cx: &mut TestAppContext) {
+    let (d, cx, log) = open(cx, Section::Shortcuts);
+    let card = cx.debug_bounds("settings").unwrap();
+    let back = gpui::MouseButton::Navigate(gpui::NavigationDirection::Back);
+    cx.simulate_mouse_down(card.center(), back, gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(log.borrow().is_empty());
+    assert!(d.read_with(cx, |d, _| d.recording().is_none()));
+}

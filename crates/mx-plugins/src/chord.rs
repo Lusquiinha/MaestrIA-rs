@@ -16,6 +16,7 @@ pub enum Key {
     PageDown,
     Insert,
     F(u8),
+    Mouse(u8),
 }
 
 const NAMED: [(Key, &str); 13] = [
@@ -52,6 +53,12 @@ impl Key {
             && name == format!("f{n}")
         {
             return Some(Key::F(n));
+        }
+        if let Some(n) = name.strip_prefix("mouse").and_then(|n| n.parse::<u8>().ok())
+            && (1..=32).contains(&n)
+            && name == format!("mouse{n}")
+        {
+            return Some(Key::Mouse(n));
         }
         NAMED.iter().find(|(_, n)| *n == name).map(|(k, _)| *k)
     }
@@ -99,6 +106,7 @@ impl Key {
             Key::PageDown => "⇟".into(),
             Key::Insert => "INSERT".into(),
             Key::F(n) => format!("F{n}"),
+            Key::Mouse(n) => format!("Mouse {n}"),
         }
     }
 
@@ -195,6 +203,13 @@ impl Chord {
     }
 
     pub fn rejection(&self, linux: bool) -> Option<String> {
+        if let Key::Mouse(n) = self.key {
+            return match n {
+                1..=3 => Some("o clique esquerdo, o direito e o do meio são do terminal".into()),
+                4 | 5 => None,
+                _ => Some("só o M4 e o M5 chegam ao app".into()),
+            };
+        }
         if !self.key.known() {
             return Some("essa tecla não dá pra usar num atalho".into());
         }

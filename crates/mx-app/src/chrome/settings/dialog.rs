@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{
     AnyElement, AnyView, App, AppContext, Context, FocusHandle, FontWeight, InteractiveElement,
-    IntoElement, KeyDownEvent, ParentElement, Pixels, Point, Render, ScrollHandle, SharedString,
+    IntoElement, KeyDownEvent, MouseDownEvent, ParentElement, Pixels, Point, Render, ScrollHandle, SharedString,
     StatefulInteractiveElement, Styled, Window, div, px,
 };
 
@@ -178,6 +178,15 @@ impl SettingsDialog {
         cx.stop_propagation();
     }
 
+    fn mouse_down(&mut self, ev: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.recording.is_none() {
+            return;
+        }
+        let Some(press) = crate::keymap::recorded_mouse(ev.button, ev.modifiers) else { return };
+        self.key(press, window, cx);
+        cx.stop_propagation();
+    }
+
     pub(super) fn open_menu<A: Clone + 'static>(
         &mut self,
         entries: Vec<MenuEntry<A>>,
@@ -343,6 +352,7 @@ impl Render for SettingsDialog {
                     .h(px(h))
                     .track_focus(&self.focus)
                     .on_key_down(cx.listener(Self::key_down))
+                    .capture_any_mouse_down(cx.listener(Self::mouse_down))
                     .child(
                         div()
                             .flex()

@@ -22,6 +22,9 @@ pub mod ui;
 pub mod update_confirm;
 pub mod window_frame;
 
+#[cfg(test)]
+mod mouse_tests;
+
 use std::borrow::Cow;
 
 use gpui::{App, AppContext, Bounds, TitlebarOptions, WindowBounds, WindowOptions, px, size};

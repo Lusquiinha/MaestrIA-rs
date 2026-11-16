@@ -1,4 +1,4 @@
-use gpui::Keystroke;
+use gpui::{Keystroke, Modifiers, MouseButton, NavigationDirection};
 use mx_plugins::chord::{Chord, Key, KeyPress};
 
 use crate::chrome::settings::{self, ChordCheck};
@@ -43,6 +43,7 @@ pub fn chord_id(c: &Chord) -> String {
         Key::PageDown => "pagedown".into(),
         Key::Insert => "insert".into(),
         Key::F(n) => format!("f{n}"),
+        Key::Mouse(n) => format!("mouse{n}"),
     };
     let mut parts: Vec<String> = Vec::new();
     for (on, m) in [(c.control, "ctrl"), (c.alt, "alt"), (c.shift, "shift"), (c.meta, "meta")] {
@@ -68,6 +69,24 @@ pub fn press_of(k: &Keystroke) -> Option<KeyPress> {
         Pressed::Key(key) => Some(press(key, m.control, m.alt, m.shift, m.platform)),
         _ => None,
     }
+}
+
+pub fn mouse_number(button: MouseButton) -> Option<u8> {
+    match button {
+        MouseButton::Navigate(NavigationDirection::Back) => Some(4),
+        MouseButton::Navigate(NavigationDirection::Forward) => Some(5),
+        _ => None,
+    }
+}
+
+pub fn press_of_mouse(button: MouseButton, m: Modifiers) -> Option<KeyPress> {
+    let n = mouse_number(button)?;
+    Some(press(Key::Mouse(n), m.control, m.alt, m.shift, m.platform))
+}
+
+pub fn recorded_mouse(button: MouseButton, m: Modifiers) -> Option<settings::KeyPress> {
+    let key = chord_id(&Chord::new(Key::Mouse(mouse_number(button)?)));
+    Some(settings::KeyPress { key, ctrl: m.control, alt: m.alt, shift: m.shift, meta: m.platform })
 }
 
 pub fn check_chord(p: &settings::KeyPress) -> ChordCheck {
@@ -134,7 +153,7 @@ pub fn terminal_key(p: &KeyPress, linux: bool) -> Option<TerminalKey> {
 }
 
 pub fn may_be_shortcut(p: &KeyPress) -> bool {
-    p.control || p.alt || p.meta || matches!(p.key, Key::F(_))
+    p.control || p.alt || p.meta || matches!(p.key, Key::F(_) | Key::Mouse(_))
 }
 
 pub fn is_editing_key(key: Key) -> bool {
