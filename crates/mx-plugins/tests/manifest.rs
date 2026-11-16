@@ -150,6 +150,47 @@ fn chord_rejections_explain_why() {
     assert_eq!(Chord::parse("alt+space").unwrap().label(true), "Alt+Space");
 }
 
+#[test]
+fn a_side_mouse_button_is_a_chord_saved_by_its_number() {
+    let m4 = Chord::parse("mouse4").unwrap();
+    assert_eq!(m4.key, Key::Mouse(4));
+    assert_eq!(m4.label(true), "Mouse 4");
+    assert_eq!(Chord::parse("ctrl+mouse5").unwrap().label(true), "Ctrl+Mouse 5");
+    assert_eq!(Chord::parse("ctrl+mouse5").unwrap().label(false), "⌃Mouse 5");
+    for bad in ["mouse", "mouse0", "mouse33", "mouse04", "mousex"] {
+        assert_eq!(Chord::parse(bad), None, "{bad}");
+    }
+}
+
+#[test]
+fn the_side_buttons_need_no_modifier_and_the_terminal_buttons_are_refused() {
+    let why = |id: &str| Chord::parse(id).unwrap().rejection(true);
+    assert_eq!(why("mouse4"), None);
+    assert_eq!(why("mouse5"), None);
+    assert_eq!(why("alt+mouse4"), None);
+    for id in ["mouse1", "mouse2", "mouse3", "ctrl+mouse1"] {
+        assert_eq!(why(id).unwrap(), "o clique esquerdo, o direito e o do meio são do terminal", "{id}");
+    }
+    assert_eq!(why("mouse6").unwrap(), "só o M4 e o M5 chegam ao app");
+}
+
+#[test]
+fn a_mouse_chord_only_accepts_its_own_button_and_modifiers() {
+    let press = |n: u8, control: bool| KeyPress {
+        key: Key::Mouse(n),
+        physical: None,
+        meta: false,
+        control,
+        alt: false,
+        shift: false,
+    };
+    let m4 = Chord::new(Key::Mouse(4));
+    assert!(m4.accepts(&press(4, false)));
+    assert!(!m4.accepts(&press(5, false)));
+    assert!(!m4.accepts(&press(4, true)));
+    assert!(!Chord::parse("4").unwrap().accepts(&press(4, false)));
+}
+
 fn dead_e(meta: bool, alt: bool) -> KeyPress {
     KeyPress { key: Key::Char('´'), physical: Some(0x08), meta, control: false, alt, shift: false }
 }

@@ -43,6 +43,7 @@ pub fn chord_id(c: &Chord) -> String {
         Key::PageDown => "pagedown".into(),
         Key::Insert => "insert".into(),
         Key::F(n) => format!("f{n}"),
+        Key::Mouse(n) => format!("mouse{n}"),
     };
     let mut parts: Vec<String> = Vec::new();
     for (on, m) in [(c.control, "ctrl"), (c.alt, "alt"), (c.shift, "shift"), (c.meta, "meta")] {
@@ -134,7 +135,7 @@ pub fn terminal_key(p: &KeyPress, linux: bool) -> Option<TerminalKey> {
 }
 
 pub fn may_be_shortcut(p: &KeyPress) -> bool {
-    p.control || p.alt || p.meta || matches!(p.key, Key::F(_))
+    p.control || p.alt || p.meta || matches!(p.key, Key::F(_) | Key::Mouse(_))
 }
 
 pub fn is_editing_key(key: Key) -> bool {
