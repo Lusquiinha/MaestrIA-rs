@@ -24,8 +24,13 @@ IMAGE="maestria-rs-deb:$RUST_VERSION"
 CACHE="$REPO/target-deb"
 mkdir -p "$HERE/dist" "$CACHE/cargo-home"
 
-echo "==> imagem (ubuntu:22.04, rust $RUST_VERSION)"
-docker build --build-arg "RUST_VERSION=$RUST_VERSION" -t "$IMAGE" "$HERE"
+# DEB_IMAGE_PREBUILT=1: a imagem já foi montada (o CI a monta com cache de camadas).
+if [ "${DEB_IMAGE_PREBUILT:-0}" = 1 ]; then
+  docker image inspect "$IMAGE" >/dev/null || { echo "DEB_IMAGE_PREBUILT=1, mas não há a imagem $IMAGE" >&2; exit 1; }
+else
+  echo "==> imagem (ubuntu:22.04, rust $RUST_VERSION)"
+  docker build --build-arg "RUST_VERSION=$RUST_VERSION" -t "$IMAGE" "$HERE"
+fi
 
 JOBS=()
 [ -n "${CARGO_BUILD_JOBS:-}" ] && JOBS=(-e "CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS")

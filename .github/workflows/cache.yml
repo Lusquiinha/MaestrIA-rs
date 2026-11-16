@@ -1,0 +1,84 @@
+name: cache
+
+# Aquece o cache que o release.yml lê. O cache gravado num run de tag fica
+# preso àquela tag e nenhum release seguinte o enxerga; o da main, todos
+# enxergam. Então quem grava é este, na main, e o release só lê.
+#
+# Roda quando as dependências podem ter mudado, e uma vez por semana pra o
+# cache não expirar (o GitHub apaga o que fica 7 dias sem uso).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Cargo.lock
+      - Cargo.toml
+      - Makefile
+      - packaging/linux/Dockerfile
+      - .github/workflows/cache.yml
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: cache
+  cancel-in-progress: true
+
+env:
+  # Igual ao release.yml: o rust-cache inclui as variáveis CARGO_* na chave.
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.rust.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: rust
+        run: echo "version=$(sed -n 's/^RUST_VERSION ?= *//p' Makefile)" >> "$GITHUB_OUTPUT"
+
+  mac:
+    needs: rust
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ needs.rust.outputs.version }}
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: mac-${{ matrix.target }}
+      - run: cargo build -p mx-app --release --locked --target ${{ matrix.target }}
+
+  deb:
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6
+        with:
+          path: |
+            target-deb/cargo-home/registry
+            target-deb/cargo-home/git
+            target-deb/target
+          key: deb-${{ needs.rust.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: deb-${{ needs.rust.outputs.version }}-
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: packaging/linux
+          build-args: RUST_VERSION=${{ needs.rust.outputs.version }}
+          tags: maestria-rs-deb:${{ needs.rust.outputs.version }}
+          load: true
+          cache-from: type=gha,scope=deb-image-${{ needs.rust.outputs.version }}
+          cache-to: type=gha,mode=max,scope=deb-image-${{ needs.rust.outputs.version }}
+      - run: ./packaging/linux/build-deb.sh --variant rs
+        env:
+          RUST_VERSION: ${{ needs.rust.outputs.version }}
+          DEB_IMAGE_PREBUILT: 1

@@ -23,7 +23,7 @@ jobs:
       rust: ${{ steps.rust.outputs.version }}
       versao: ${{ steps.check.outputs.versao }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ github.event.inputs.tag || github.ref_name }}' }
       - name: a tag bate com o Cargo.toml?
         id: check
@@ -43,9 +43,11 @@ jobs:
     needs: versao
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ github.event.inputs.tag || github.ref_name }}' }
-      - uses: actions/cache@v4
+      # O cache só se lê aqui: quem o grava é o cache.yml, na main. O cache de
+      # uma tag fica preso a ela e nenhum release seguinte o enxergaria.
+      - uses: actions/cache/restore@v6
         with:
           path: |
             target-deb/cargo-home/registry
@@ -53,43 +55,94 @@ jobs:
             target-deb/target
           key: deb-${{ needs.versao.outputs.rust }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: deb-${{ needs.versao.outputs.rust }}-
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: packaging/linux
+          build-args: RUST_VERSION=${{ needs.versao.outputs.rust }}
+          tags: maestria-rs-deb:${{ needs.versao.outputs.rust }}
+          load: true
+          cache-from: type=gha,scope=deb-image-${{ needs.versao.outputs.rust }}
       - run: ./packaging/linux/build-deb.sh --variant rs
         env:
           RUST_VERSION: ${{ needs.versao.outputs.rust }}
           MAESTRIA_VERSION: ${{ needs.versao.outputs.versao }}
-      - uses: actions/upload-artifact@v4
+          DEB_IMAGE_PREBUILT: 1
+      - uses: actions/upload-artifact@v7
         with:
-          name: deb
+          name: pkg-deb
           path: packaging/linux/dist/*.deb
           if-no-files-found: error
 
-  dmg:
+  # Uma arquitetura por máquina, em paralelo: o LTO fat de cada uma é quase
+  # todo serial, então duas máquinas fazem em ~metade do tempo de uma.
+  mac-bin:
     needs: versao
     runs-on: macos-15
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ github.event.inputs.tag || github.ref_name }}' }
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ needs.versao.outputs.rust }}
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: actions/cache@v4
+          targets: ${{ matrix.target }}
+      # Só as dependências, gravadas pelo cache.yml na main; aqui só se lê.
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: dmg-${{ needs.versao.outputs.rust }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: dmg-${{ needs.versao.outputs.rust }}-
-      - uses: taiki-e/install-action@v2
-        with: { tool: cargo-bundle }
-      - run: ./packaging/macos/make-dmg.sh
+          shared-key: mac-${{ matrix.target }}
+          save-if: false
+      - run: cargo build -p mx-app --release --locked --target ${{ matrix.target }}
         env:
           MAESTRIA_VERSION: ${{ needs.versao.outputs.versao }}
-      - uses: actions/upload-artifact@v4
+      # O .app (ícones, Info.plist) sai de um lado só; o make-dmg troca o
+      # binário dele pelo universal.
+      - if: matrix.target == 'aarch64-apple-darwin'
+        uses: taiki-e/install-action@v2
+        with: { tool: cargo-bundle }
+      - if: matrix.target == 'aarch64-apple-darwin'
+        working-directory: crates/mx-app
+        run: cargo bundle --release --target ${{ matrix.target }} --format osx
+        env:
+          MAESTRIA_VERSION: ${{ needs.versao.outputs.versao }}
+      - run: |
+          mkdir -p out/${{ matrix.target }}/release
+          cp target/${{ matrix.target }}/release/maestria out/${{ matrix.target }}/release/
+          if [ -d target/${{ matrix.target }}/release/bundle ]; then
+            cp -R target/${{ matrix.target }}/release/bundle out/${{ matrix.target }}/release/
+          fi
+      - uses: actions/upload-artifact@v7
         with:
-          name: dmg
+          name: mac-bin-${{ matrix.target }}
+          path: out
+          if-no-files-found: error
+          retention-days: 1
+
+  dmg:
+    needs: [versao, mac-bin]
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with: { ref: '${{ github.event.inputs.tag || github.ref_name }}' }
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: mac-bin-*
+          path: target
+          merge-multiple: true
+      # O artifact não guarda o bit de execução.
+      - run: chmod +x target/*/release/maestria target/*/release/bundle/osx/*.app/Contents/MacOS/*
+      - run: ./packaging/macos/make-dmg.sh --no-build
+        env:
+          MAESTRIA_VERSION: ${{ needs.versao.outputs.versao }}
+          TARGET_DIR: ${{ github.workspace }}/target
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-dmg
           path: packaging/macos/dist/*.dmg
           if-no-files-found: error
 
@@ -97,10 +150,10 @@ jobs:
     needs: [deb, dmg]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { ref: '${{ github.event.inputs.tag || github.ref_name }}' }
-      - uses: actions/download-artifact@v4
-        with: { path: anexos, merge-multiple: true }
+      - uses: actions/download-artifact@v8
+        with: { path: anexos, pattern: 'pkg-*', merge-multiple: true }
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
