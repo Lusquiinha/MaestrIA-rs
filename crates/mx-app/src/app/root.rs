@@ -1,7 +1,7 @@
 use gpui::{
     AnyView, App, AppContext, ClipboardItem, Context, DispatchPhase, DragMoveEvent, Entity, FocusHandle, InteractiveElement, IntoElement,
-    KeyDownEvent, MouseMoveEvent, ParentElement, Render, StatefulInteractiveElement, StyleRefinement, Styled,
-    Window, canvas, deferred, div, prelude::FluentBuilder, px,
+    KeyDownEvent, MouseDownEvent, MouseMoveEvent, ParentElement, Render, StatefulInteractiveElement, StyleRefinement, Styled,
+    WeakEntity, Window, canvas, deferred, div, prelude::FluentBuilder, px,
 };
 use mx_store::{Areas, Changes, Effect, Store};
 
@@ -167,6 +167,20 @@ impl Root {
             return;
         }
         let Outcome::Ui(request) = keymap::on_key_down(&self.host, ev, window, cx) else { return };
+        self.open_ui(request, window, cx);
+    }
+
+    fn on_side_button(&mut self, ev: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.ui.read(cx).top().is_some() {
+            return;
+        }
+        cx.stop_propagation();
+        if let Outcome::Ui(request) = keymap::on_mouse_down(&self.host, ev, window, cx) {
+            self.open_ui(request, window, cx);
+        }
+    }
+
+    fn open_ui(&mut self, request: UiRequest, window: &mut Window, cx: &mut Context<Self>) {
         match request {
             UiRequest::Settings => settings::open(Section::Appearance, window, cx),
             UiRequest::Restart { all } => crate::app::restart::request(all, cx),
@@ -218,6 +232,24 @@ impl Root {
                     .group_hover("sidebar-grip", |s| s.h(px(46.))),
             )
     }
+}
+
+fn side_buttons(root: WeakEntity<Root>) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |_, _, window, _| {
+            let root = root.clone();
+            window.on_mouse_event(move |ev: &MouseDownEvent, phase, window, cx| {
+                if phase != DispatchPhase::Capture || keymap::mouse_number(ev.button).is_none() {
+                    return;
+                }
+                root.update(cx, |this, cx| this.on_side_button(ev, window, cx)).ok();
+            });
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
 }
 
 fn pane_area_probe(host: Entity<StoreHost>) -> impl IntoElement {
@@ -339,6 +371,7 @@ impl Render for Root {
             .bg(mx.canvas)
             .text_color(mx.fg)
             .capture_key_down(cx.listener(Self::on_key))
+            .child(side_buttons(cx.entity().downgrade()))
             .on_drag_move(move |ev: &DragMoveEvent<SidebarGrip>, window, cx: &mut App| {
                 let x = f32::from(ev.event.position.x) - status_bar::INSET;
                 let w = fit_sidebar(x, f32::from(window.viewport_size().width));
