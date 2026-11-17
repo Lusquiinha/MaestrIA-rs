@@ -122,6 +122,7 @@ impl TextSystem {
         if let Some(font_id) = font_id {
             font_id
         } else {
+            let _span = crate::window::perf_span("gpui.font.load");
             let font_id = self.platform_text_system.font_id(font);
             self.font_ids_by_font
                 .write()

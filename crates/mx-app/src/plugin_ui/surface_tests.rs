@@ -110,7 +110,6 @@ fn scroll_by(cx: &mut gpui::VisualTestContext, dy: f32) {
 #[gpui::test]
 fn a_long_list_builds_only_what_shows_and_still_reaches_the_end(cx: &mut TestAppContext) {
     let (_, _, cx) = open(cx);
-    // O primeiro quadro mede tudo; o próximo já é só a janela.
     scroll_by(cx, -1.0);
     let shown = crate::rfw_view::virtual_shown_now();
     assert!(shown.iter().any(|r| r.start == 0 && r.len() < 150), "só o começo: {shown:?}");
@@ -119,6 +118,26 @@ fn a_long_list_builds_only_what_shows_and_still_reaches_the_end(cx: &mut TestApp
     }
     let shown = crate::rfw_view::virtual_shown_now();
     assert!(shown.iter().any(|r| r.end == 300 && r.start > 150), "o fim: {shown:?}");
+}
+
+#[gpui::test]
+fn the_first_frame_of_a_long_list_builds_only_the_start(cx: &mut TestAppContext) {
+    // Montar as 300 linhas pra medir custava o quadro inteiro ao abrir a tela.
+    let (_, _, _cx) = open(cx);
+    let shown = crate::rfw_view::virtual_shown_now();
+    assert!(!shown.is_empty() && shown.iter().all(|r| r.start == 0 && r.len() < 150), "{shown:?}");
+}
+
+#[gpui::test]
+fn a_long_list_with_one_anchor_at_the_end_stays_whole(cx: &mut TestAppContext) {
+    // A âncora só existe se for montada, e rolar até ela precisa dela.
+    let rows: String = (0..299).map(|i| format!("Text(text: \"linha {i}\"),")).collect();
+    let (_, _, _cx) = open_with(
+        cx,
+        format!("import core.widgets;\nimport maestria;\nwidget root = ListView(children: [{rows} Anchor(id: \"fim\", child: Text(text: \"fim\"))]);"),
+    );
+    let shown = crate::rfw_view::virtual_shown_now();
+    assert!(!shown.is_empty() && shown.iter().all(|r| r.len() == 300), "{shown:?}");
 }
 
 #[gpui::test]

@@ -69,6 +69,12 @@ pub fn open_catalog(_window: &mut Window, cx: &mut App) {
     layer.update(cx, |l, cx| l.open_catalog(cx));
 }
 
+/// Fecha o diálogo de plugin aberto (catálogo, instalar, configurações).
+pub fn close_dialog(cx: &mut App) {
+    let Some(layer) = cx.try_global::<LayerHandle>().and_then(|h| h.0.upgrade()) else { return };
+    layer.update(cx, |l, cx| l.close_local(cx));
+}
+
 pub fn update_plugin(update: mx_plugins::catalog::PluginUpdate, cx: &mut App) {
     let Some(layer) = cx.try_global::<LayerHandle>().and_then(|h| h.0.upgrade()) else { return };
     let host = layer.read(cx).host.clone();
