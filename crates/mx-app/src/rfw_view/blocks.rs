@@ -291,6 +291,7 @@ fn column(p: &mut Paint, blocks: &[Block], cx: &mut Context<BlocksView>) -> gpui
 
 impl Render for BlocksView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("blocks.render");
         self.prepare(window, cx);
         let theme = self.theme.clone();
         let mut p = Paint { view: self, ids: 0, surface: self.surface() };

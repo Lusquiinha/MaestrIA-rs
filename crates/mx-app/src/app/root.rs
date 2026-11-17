@@ -134,7 +134,9 @@ impl Root {
         if sidebar {
             self.sidebar.update(cx, |_, cx| cx.notify());
         }
-        if panes {
+        // O `Panes` tem cache (ver `render`): o que redesenha o `Root` por causa do
+        // store redesenha ele também, como era antes do cache.
+        if panes || root {
             self.panes.update(cx, |_, cx| cx.notify());
         }
         if status {
@@ -293,6 +295,7 @@ impl Render for Blank {
 
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("root.render");
         let focus = self.focus.clone();
         window.on_next_frame(move |window, _| {
             if !window.context_stack().iter().any(|c| c.contains(ROOT_CONTEXT)) {
@@ -342,7 +345,13 @@ impl Render for Root {
             .min_w_0()
             .relative()
             .child(pane_area_probe(self.host.clone()))
-            .child(self.panes.clone())
+            // Com cache: o `Root` é redesenhado a cada tick dos spinners (a camada
+            // `slots`), a cada mudança da lateral ou da barra de status; sem ele,
+            // cada uma dessas remontava os painéis inteiros (sync de terminais,
+            // telas de plugin, cabeçalhos). O `Panes` se avisa sozinho quando
+            // muda (store, ativação da janela, plugins), e arrastar, foco e tema
+            // fazem `window.refresh()`, que limpa todos os caches.
+            .child(AnyView::from(self.panes.clone()).cached(StyleRefinement::default().size_full()))
             .child(slots::layer(owners))
             .child(deferred(self.notices(banner_text, top, cx)).with_priority(NOTICES_ABOVE_PLUGIN_LAYERS));
 
@@ -449,6 +458,50 @@ mod tests {
             tabs: vec![],
         };
         assert_eq!(routes(&c), (false, false, false, false, true));
+    }
+
+    fn mount(cx: &mut gpui::TestAppContext) -> (Entity<Root>, Entity<StoreHost>, &mut gpui::VisualTestContext) {
+        let r = crate::test_store::rig();
+        let (store, rt) = (r.s, r.rt);
+        std::mem::forget(r.dir);
+        let host = cx.update(|cx| {
+            Mx::install(mx_theme::default_theme(), cx);
+            let host = StoreHost::for_test(store, rt, cx);
+            ui::install(host.clone(), cx);
+            host
+        });
+        let h = host.clone();
+        let (root, vcx) = cx.add_window_view(move |window, cx| Root::new(h, window, cx));
+        vcx.simulate_resize(gpui::size(px(1200.), px(800.)));
+        vcx.run_until_parked();
+        (root, host, vcx)
+    }
+
+    fn pane_renders(root: &Entity<Root>, cx: &mut gpui::VisualTestContext) -> usize {
+        let panes = root.read_with(cx, |r, _| r.panes.clone());
+        panes.read_with(cx, |p, _| p.renders)
+    }
+
+    #[gpui::test]
+    fn the_sidebar_redrawing_does_not_rebuild_the_panes(cx: &mut gpui::TestAppContext) {
+        let (root, _, cx) = mount(cx);
+        let before = pane_renders(&root, cx);
+        assert!(before > 0, "os painéis foram montados");
+        let sidebar = root.read_with(cx, |r, _| r.sidebar.clone());
+        for _ in 0..5 {
+            sidebar.update(cx, |_, cx| cx.notify());
+            cx.run_until_parked();
+        }
+        assert_eq!(pane_renders(&root, cx), before);
+    }
+
+    #[gpui::test]
+    fn a_banner_from_the_store_still_redraws_the_panes(cx: &mut gpui::TestAppContext) {
+        let (root, host, cx) = mount(cx);
+        let before = pane_renders(&root, cx);
+        cx.update(|_, cx| update_store(&host, cx, |s| s.show_banner("oi")));
+        cx.run_until_parked();
+        assert!(pane_renders(&root, cx) > before);
     }
 
     #[test]

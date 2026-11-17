@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use gpui::{Context, Div, IntoElement, ParentElement, Render, Styled, Subscription, Window, div, px, relative};
-use mx_rfw::{DynamicContent, Library, evaluate, parse_error_text, parse_library_file};
+use mx_rfw::{DynamicContent, Library, Widget, evaluate, parse_error_text, parse_library_file};
 use mx_theme::{Palette, Theme, Typography};
 
 use super::ActionSink;
@@ -27,6 +27,13 @@ pub struct RfwView {
     error: Option<String>,
     root: String,
     content: DynamicContent,
+    /// A árvore avaliada de `library` + `root` + `content`. Ela só muda quando
+    /// um deles muda (os `set_*` e `merge_data` a jogam fora), e cada quadro de
+    /// rolagem ou de hover remonta a tela: sem o cache, todo quadro avaliava o
+    /// plugin inteiro de novo.
+    tree: Option<Widget>,
+    /// A `tree` atual já passou pelos `sync` dos editores e campos.
+    tree_synced: bool,
     theme: Arc<Theme>,
     dir: Option<PathBuf>,
     data_dir: Option<PathBuf>,
@@ -41,6 +48,9 @@ pub struct RfwView {
     /// Quantas vezes a tela foi montada: os testes do cache (`plugin_ui/surface.rs`).
     #[cfg(test)]
     pub(crate) renders: usize,
+    /// Quantas vezes a árvore foi avaliada: os testes do cache da árvore.
+    #[cfg(test)]
+    pub(crate) evaluations: usize,
 }
 
 impl HasMenu for RfwView {
@@ -59,6 +69,8 @@ impl RfwView {
             error: None,
             root: "root".into(),
             content,
+            tree: None,
+            tree_synced: false,
             theme,
             dir,
             data_dir: None,
@@ -72,6 +84,8 @@ impl RfwView {
             activation: None,
             #[cfg(test)]
             renders: 0,
+            #[cfg(test)]
+            evaluations: 0,
         }
     }
 
@@ -80,6 +94,7 @@ impl RfwView {
             return false;
         }
         self.source = Some(text.to_owned());
+        self.forget_tree();
         match parse_library_file(text) {
             Ok(lib) => {
                 self.library = Some(lib);
@@ -104,16 +119,24 @@ impl RfwView {
             return false;
         }
         root.clone_into(&mut self.root);
+        self.forget_tree();
         true
     }
 
     pub fn merge_data(&mut self, data: &serde_json::Map<String, serde_json::Value>) {
         self.content.merge_plugin_data(data);
+        self.forget_tree();
     }
 
     pub fn set_theme(&mut self, theme: Arc<Theme>, typography: &Typography) {
         self.content.set_theme(rfw_theme(&theme, typography));
         self.theme = theme;
+        self.forget_tree();
+    }
+
+    fn forget_tree(&mut self) {
+        self.tree = None;
+        self.tree_synced = false;
     }
 
     pub fn set_dir(&mut self, dir: Option<PathBuf>) {
@@ -154,6 +177,7 @@ impl Render for RfwView {
         {
             self.renders += 1;
         }
+        let _perf = crate::perf::span("rfw.render");
         if !cx.has_active_drag() {
             self.dragging = None;
         }
@@ -176,9 +200,25 @@ impl Render for RfwView {
                 .into_any_element();
         }
         let Some(lib) = &self.library else { return root.into_any_element() };
-        let tree = evaluate(lib, &self.root, &self.content);
-        self.editors.sync(&tree, &self.theme, &self.sink, window, cx);
-        self.widgets.inputs.sync(&tree, &self.theme, &self.sink, window, cx);
+        let tree: &Widget = match &mut self.tree {
+            Some(tree) => {
+                crate::perf::count("rfw.tree_cached");
+                tree
+            }
+            slot @ None => {
+                #[cfg(test)]
+                {
+                    self.evaluations += 1;
+                }
+                let _perf = crate::perf::span("rfw.evaluate");
+                slot.insert(evaluate(lib, &self.root, &self.content))
+            }
+        };
+        if !self.tree_synced {
+            self.editors.sync(tree, &self.theme, &self.sink, window, cx);
+            self.widgets.inputs.sync(tree, &self.theme, &self.sink, window, cx);
+            self.tree_synced = true;
+        }
         self.widgets.begin(window, cx);
         let mut ctx = Ctx {
             palette: &self.theme,
@@ -195,7 +235,10 @@ impl Render for RfwView {
             editors: Some(&self.editors),
             widgets: Some(&self.widgets),
         };
-        let body = grow(render(&mut ctx, &tree, Fit::BOTH), 1.0);
+        let body = {
+            let _perf = crate::perf::span("rfw.build");
+            grow(render(&mut ctx, tree, Fit::BOTH), 1.0)
+        };
         self.widgets.finish();
         let overlay = self.menu.as_ref().filter(|_| !self.hoisted_menu).map(|m| menu::render(&p, cx, m));
         root.child(body).children(overlay).into_any_element()

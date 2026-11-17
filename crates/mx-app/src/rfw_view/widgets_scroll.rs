@@ -54,6 +54,9 @@ pub fn list(cx: &mut Ctx, l: &ScrollList, fit: Fit) -> El {
     if let Some(grid) = l.grid_delegate {
         return grid_view(cx, l, grid, fit);
     }
+    if let Some(el) = super::widgets_virtual::list(cx, l, fit) {
+        return el;
+    }
     let mut el = scroller(cx, l.scroll_direction, l.reverse);
     el = keep_offset(cx, el, l.id.as_deref());
     if let Some(p) = &l.padding {

@@ -267,6 +267,7 @@ impl Focusable for TerminalView {
 
 impl Render for TerminalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("terminal.render");
         self.render.borrow_mut().painted_focused = self.shows_focus(window);
         let terminal = div()
             .id("terminal")

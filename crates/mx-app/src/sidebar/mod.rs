@@ -22,7 +22,7 @@ use crate::app::icons::{Icon, icon};
 use crate::keymap::{Action, keymap_of};
 use crate::app::theme::{Mx, RADIUS};
 use crate::app::tooltip::tip;
-use crate::chrome::anim::Spinner;
+use crate::chrome::anim::slots::{Animated, Motion};
 use crate::rfw_view::plugin_glyph;
 use tree::Ctx;
 use widgets::Hover;
@@ -232,7 +232,9 @@ fn plugin_buttons(mx: &Mx, host: &Entity<StoreHost>, store: &Store) -> Vec<AnyEl
         .map(|c| {
             let full_id = c.full_id();
             let glyph = if store.command_busy(&full_id) {
-                Spinner::new(16., mx.theme.accent).into_any_element()
+                // Pintado pela camada de animação do `Root` (`slots`): a lateral
+                // não precisa ser remontada a cada quadro do giro.
+                Animated::new(Motion::Spin, 16., mx.theme.accent).into_any_element()
             } else {
                 let dir = r.get(&c.plugin_id).map(|p| p.dir);
                 plugin_glyph(c.icon.as_deref(), dir.as_deref(), 18., mx.fg_dim)
@@ -280,6 +282,7 @@ fn no_hits(mx: &Mx, host: &Entity<StoreHost>, store: &Store) -> AnyElement {
 
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("sidebar.render");
         crate::chrome::anim::slots::forget(cx.entity_id(), cx);
         let mx = Mx::get(cx).clone();
         let plugin_tab = self.host.read(cx).store.shown_plugin().and_then(|_| crate::plugin_ui::sidebar_view(cx));

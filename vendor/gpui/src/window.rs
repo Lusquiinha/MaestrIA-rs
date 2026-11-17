@@ -815,6 +815,15 @@ impl Frame {
     }
 }
 
+static DRAW_OBSERVER: std::sync::OnceLock<fn(std::time::Duration)> = std::sync::OnceLock::new();
+
+/// Registers a function called with the time each [`Window::draw`] took
+/// (render, layout and paint of one frame). Only the first call wins.
+/// Maestria: `MX_PERF` uses it to measure frame cost.
+pub fn set_draw_observer(observe: fn(std::time::Duration)) {
+    let _ = DRAW_OBSERVER.set(observe);
+}
+
 /// Holds the state for a specific window.
 pub struct Window {
     pub(crate) handle: AnyWindowHandle,
@@ -1917,6 +1926,15 @@ impl Window {
     /// the contents of the new [`Scene`], use [`Self::present`].
     #[profiling::function]
     pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
+        let started = DRAW_OBSERVER.get().map(|_| std::time::Instant::now());
+        let cleared = self.draw_frame(cx);
+        if let (Some(observe), Some(started)) = (DRAW_OBSERVER.get(), started) {
+            observe(started.elapsed());
+        }
+        cleared
+    }
+
+    fn draw_frame(&mut self, cx: &mut App) -> ArenaClearNeeded {
         self.invalidate_entities();
         cx.entities.clear_accessed();
         debug_assert!(self.rendered_entity_stack.is_empty());

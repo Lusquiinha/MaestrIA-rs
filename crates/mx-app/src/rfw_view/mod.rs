@@ -25,6 +25,7 @@ mod view;
 mod widgets_core;
 mod widgets_maestria;
 mod widgets_scroll;
+mod widgets_virtual;
 mod anchor;
 mod markdown_widget;
 mod selectable;
@@ -49,6 +50,8 @@ pub use icons::named as named_icon;
 pub use code_editor::own_code_buffers;
 pub use anchor::anchor_rect;
 pub use states::FollowLink;
+#[cfg(test)]
+pub use widgets_virtual::shown_now as virtual_shown_now;
 pub use key_listener::claimed as plugin_key_claimed;
 
 pub fn plugin_glyph(icon: Option<&str>, dir: Option<&std::path::Path>, size: f32, color: gpui::Hsla) -> gpui::AnyElement {

@@ -8,6 +8,7 @@ use mx_theme::Color;
 
 use super::clock::now_ms;
 use super::ease::ease_in_out;
+use super::throttle::redraw_soon;
 use crate::chrome::style::alpha;
 
 pub const SPIN_MS: f32 = 1200.;
@@ -55,7 +56,7 @@ impl RenderOnce for Spinner {
         let color = self.color;
         canvas(|_, _, _| {}, move |b, _, window, cx| {
             paint_spin(window, b, color, 1., now_ms(), cx);
-            window.request_animation_frame();
+            redraw_soon(window, cx);
         })
         .size(px(self.size))
         .flex_none()
@@ -88,9 +89,9 @@ impl Pulse {
 impl RenderOnce for Pulse {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let color = self.color;
-        canvas(|_, _, _| {}, move |b, _, window, _| {
+        canvas(|_, _, _| {}, move |b, _, window, cx| {
             paint_pulse(window, b, color, 1., now_ms());
-            window.request_animation_frame();
+            redraw_soon(window, cx);
         })
         .size(px(self.size))
         .flex_none()
