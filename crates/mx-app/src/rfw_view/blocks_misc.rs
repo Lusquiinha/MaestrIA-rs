@@ -165,7 +165,7 @@ fn progress(p: &Paint, value: Option<f64>, label: Option<&String>, detail: Optio
                 .left(relative(phase * 1.3 - 0.3))
                 .w(relative(0.3))
                 .bg(color)
-                .child(gpui::canvas(|_, _, _| {}, |_, _, window, _| window.request_animation_frame()))
+                .child(gpui::canvas(|_, _, _| {}, |_, _, window, cx| crate::chrome::anim::throttle::redraw_soon(window, cx)))
         }
     };
     col.child(div().relative().h(px(5.0)).w_full().rounded(px(3.0)).overflow_hidden().bg(hsla(th.bg_active)).child(fill)).into_any_element()

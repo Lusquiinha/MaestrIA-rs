@@ -360,6 +360,7 @@ impl Element for TerminalElement {
         window: &mut Window,
         cx: &mut App,
     ) -> bool {
+        let _perf = crate::perf::span("terminal.prepaint");
         if bounds.size.width <= px(1.) || bounds.size.height <= px(1.) {
             return false;
         }
@@ -446,6 +447,7 @@ impl Element for TerminalElement {
         window: &mut Window,
         cx: &mut App,
     ) {
+        let _perf = crate::perf::span("terminal.paint");
         if !*visible {
             return;
         }

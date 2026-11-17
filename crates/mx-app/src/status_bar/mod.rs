@@ -87,6 +87,7 @@ impl StatusBar {
 
 impl Render for StatusBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("status.render");
         let mx = Mx::get(cx).clone();
         let store = &self.host.read(cx).store;
         let summary = Summary::of(store);

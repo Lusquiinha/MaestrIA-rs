@@ -5,6 +5,7 @@ pub mod ease;
 pub mod reveal;
 pub mod slots;
 mod spinner;
+pub mod throttle;
 
 pub use confetti_layer::ConfettiLayer;
 pub use spinner::{Pulse, Spinner};

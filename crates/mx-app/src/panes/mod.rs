@@ -60,6 +60,9 @@ pub struct PaneArea {
     changes_open: HashSet<String>,
     changes: HashMap<String, Entity<changes::ChangesView>>,
     cards: HashMap<String, suggestion_card::CardState>,
+    /// Quantas vezes os painéis foram montados: os testes do cache no `Root`.
+    #[cfg(test)]
+    pub(crate) renders: usize,
 }
 
 impl PaneArea {
@@ -86,6 +89,8 @@ impl PaneArea {
             changes_open: HashSet::new(),
             changes: HashMap::new(),
             cards: HashMap::new(),
+            #[cfg(test)]
+            renders: 0,
         }
     }
 
@@ -510,6 +515,11 @@ impl PaneArea {
 
 impl Render for PaneArea {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let _perf = crate::perf::span("panes.render");
+        #[cfg(test)]
+        {
+            self.renders += 1;
+        }
         crate::chrome::anim::slots::forget(cx.entity_id(), cx);
         self.attach(window, cx);
         let host = self.host.read(cx);

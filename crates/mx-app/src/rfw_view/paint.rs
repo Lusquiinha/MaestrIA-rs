@@ -40,7 +40,7 @@ fn spin_phase() -> f32 {
 pub fn ring(value: Option<f64>, stroke: f32, color: Hsla, track: Option<Hsla>) -> impl IntoElement {
     canvas(
         |_, _, _| {},
-        move |bounds, _, window: &mut Window, _: &mut App| {
+        move |bounds, _, window: &mut Window, cx: &mut App| {
             if let Some(track) = track {
                 arc(window, bounds, stroke, -PI / 2.0, TAU, track);
             }
@@ -49,7 +49,7 @@ pub fn ring(value: Option<f64>, stroke: f32, color: Hsla, track: Option<Hsla>) -
                 None => {
                     let start = spin_phase() * TAU - PI / 2.0;
                     arc(window, bounds, stroke, start, TAU * 0.28, color);
-                    window.request_animation_frame();
+                    crate::chrome::anim::throttle::redraw_soon(window, cx);
                 }
             }
         },

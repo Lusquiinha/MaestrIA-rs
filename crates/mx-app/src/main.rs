@@ -5,6 +5,7 @@ mod chrome;
 mod diagnostics;
 mod keymap;
 mod panes;
+mod perf;
 mod plugin_ui;
 mod rail;
 mod reader;
@@ -55,6 +56,7 @@ fn main() {
         return;
     }
     diagnostics::install();
+    perf::install();
     Application::new().with_assets(app::assets::Assets).run(|cx: &mut App| {
         if let Err(err) = cx
             .text_system()

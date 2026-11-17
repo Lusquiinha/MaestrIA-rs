@@ -54,6 +54,11 @@ impl<T: Default> Slots<T> {
         self.items.borrow_mut().truncate(self.used.get());
         self.used.set(0);
     }
+
+    /// Quantos estados este quadro já pegou.
+    fn taken(&self) -> usize {
+        self.used.get()
+    }
 }
 
 pub struct WidgetStates {
@@ -134,10 +139,25 @@ impl WidgetStates {
     pub fn selection(&self) -> Option<SelectionSlot> {
         self.current_selection.borrow().clone()
     }
+
+    /// O que já foi pego de estado por ordem de montagem neste quadro. Se um
+    /// trecho da tela muda isto, ele depende da ordem: não pode ser pulado (ver
+    /// `widgets_virtual`).
+    pub fn stamp(&self) -> [usize; 6] {
+        [
+            self.sprites.taken(),
+            self.zooms.taken(),
+            self.fits.taken(),
+            self.selections.taken(),
+            self.keys.taken(),
+            self.anchors.borrow().len(),
+        ]
+    }
 }
 
 impl Drop for WidgetStates {
     fn drop(&mut self) {
+        super::widgets_virtual::forget_owner(self.owner);
         anchor::forget_owner(self.owner);
     }
 }
