@@ -59,6 +59,10 @@ pub fn open_demo(name: &str, cx: &mut App) {
         super::blocks::open_demo(rest.trim_start_matches('@').parse().unwrap_or(0), cx);
         return;
     }
+    if let Some(rest) = name.strip_prefix("long") {
+        open_long(rest.trim_start_matches('@').parse().unwrap_or(2000), cx);
+        return;
+    }
     let Some(d) = demo(name) else {
         log::error!("{DEMO_ENV}: unknown fixture {name}");
         cx.quit();
@@ -81,6 +85,38 @@ pub fn open_demo(name: &str, cx: &mut App) {
             if let Some(obj) = data.as_object() {
                 view.merge_data(obj);
             }
+            view
+        })
+    });
+    if let Err(err) = opened {
+        log::error!("failed to open demo window: {err:#}");
+        cx.quit();
+    }
+}
+
+/// `long@N`: uma `ListView` com N linhas de ícone, título e subtítulo, para
+/// medir o primeiro quadro de uma lista comprida (`MX_PERF=1`).
+fn open_long(n: usize, cx: &mut App) {
+    let rows: String = (0..n)
+        .map(|i| {
+            format!(
+                "Padding(padding: [12.0, 6.0, 12.0, 6.0], child: Row(children: [\
+                 Icon(icon: 0xe88a, size: 16.0), SizedBox(width: 8.0), \
+                 Expanded(child: Column(crossAxisAlignment: \"start\", children: [\
+                 Text(text: \"item {i} · host-{i}.example\"), \
+                 Text(text: \"10.0.{}.{} · atualizado há {i} min\", style: {{ fontSize: 11.0 }})]))])),",
+                i / 256,
+                i % 256
+            )
+        })
+        .collect();
+    let library = format!("import core.widgets;\nwidget root = ListView(children: [{rows}]);");
+    let options = window_options(&format!("rfw · long@{n}"), 420.0, 720.0, cx);
+    let opened = cx.open_window(options, |_, cx| {
+        cx.new(|_| {
+            let mut view = RfwView::new(default_theme().clone(), &Typography::standard(), None, logging_sink());
+            view.set_background(Some(super::style::hsla(default_theme().bg)));
+            view.set_library(&library);
             view
         })
     });

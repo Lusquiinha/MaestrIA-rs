@@ -7,9 +7,14 @@
 //! teriam (a medida do último quadro em que apareceram, ou uma estimativa).
 //!
 //! Cuidados:
-//! - o primeiro quadro monta tudo, pra medir. Se a lista usar estado que
-//!   depende da ordem de montagem (sprites, zoom, atalhos, âncoras: o `stamp`
-//!   mudou), ela fica inteira daí em diante, como era;
+//! - o primeiro quadro já monta só o começo, com alturas estimadas: montar
+//!   tudo pra medir custava ~200 ms numa lista de 2000 linhas (taffy e texto),
+//!   a cada vez que a tela do plugin abria. As alturas reais chegam conforme
+//!   os itens aparecem;
+//! - se a lista usar estado que depende da ordem de montagem (sprites, zoom,
+//!   atalhos, seleção, âncoras), ela fica inteira, como era: no primeiro quadro
+//!   pelos nomes dos widgets dos itens (uma âncora no fim da lista tem que
+//!   existir pra rolar até ela), e depois se o `stamp` mudar ao montar;
 //! - cada item tem a sua faixa de ids de elemento, e o contador volta ao que
 //!   era depois da lista: o que vem depois não muda de id conforme a rolagem;
 //! - quando a altura medida de um item acima difere da estimada, a rolagem é
@@ -22,6 +27,7 @@ use std::rc::Rc;
 
 use gpui::{AlignItems, ScrollHandle, StatefulInteractiveElement, Styled, div, point, prelude::*, px};
 use mx_rfw::decoders::Axis;
+use mx_rfw::tree::Widget;
 use mx_rfw::widgets::core_widgets::ScrollList;
 
 use super::layout::{Ctx, El, Fit, rigid, stretch_self};
@@ -44,7 +50,8 @@ struct State {
     /// Os itens montados no último quadro, na ordem dos filhos (depois do
     /// espaçador de cima).
     shown: Range<usize>,
-    measured_once: bool,
+    /// Os itens já passaram pela busca de widgets com estado por ordem.
+    scanned: bool,
     /// A lista usa estado por ordem de montagem: fica inteira.
     eager: bool,
 }
@@ -87,7 +94,12 @@ pub fn list(cx: &mut Ctx, l: &ScrollList, fit: Fit) -> Option<El> {
     };
     let slot = state(states.owner, key);
     let mut st = slot.borrow_mut();
+    if !st.scanned {
+        st.scanned = true;
+        st.eager = l.children.iter().flatten().any(|w| keeps_order(w));
+    }
     if st.eager {
+        st.shown = 0..l.children.len();
         return None;
     }
     let handle = match &l.id {
@@ -99,7 +111,7 @@ pub fn list(cx: &mut Ctx, l: &ScrollList, fit: Fit) -> Option<El> {
     measure(&mut st, &handle, n, fixed);
     let guess = fixed.unwrap_or_else(|| average(&st.heights));
     let heights: Vec<f32> = st.heights.iter().map(|h| h.unwrap_or(guess)).collect();
-    let range = if st.measured_once { visible(&heights, &handle) } else { 0..n };
+    let range = visible(&heights, &handle);
 
     let before = states.stamp();
     let mut el = cx.el().flex().flex_col().min_w(px(0.0)).min_h(px(0.0)).overflow_y_scroll();
@@ -129,8 +141,18 @@ pub fn list(cx: &mut Ctx, l: &ScrollList, fit: Fit) -> Option<El> {
         st.eager = true;
     }
     st.shown = range;
-    st.measured_once = true;
     Some(if fit.any() { stretch_self(el) } else { el })
+}
+
+/// Widgets que pegam estado pela ordem de montagem (`WidgetStates::stamp`):
+/// uma lista com algum deles nos itens não pode pular item.
+const ORDERED: [&str; 8] =
+    ["Sprite", "ZoomView", "FittedBox", "KeyListener", "Anchor", "Selectable", "SelectionLines", "Markdown"];
+
+fn keeps_order(item: &Widget) -> bool {
+    let mut found = false;
+    item.walk(&mut |w| found |= w.as_node().is_some_and(|n| ORDERED.contains(&n.name.as_str())));
+    found
 }
 
 /// Guarda as alturas que o último quadro mediu e corrige a rolagem pra o item

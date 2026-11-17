@@ -815,13 +815,38 @@ impl Frame {
     }
 }
 
-static DRAW_OBSERVER: std::sync::OnceLock<fn(std::time::Duration)> = std::sync::OnceLock::new();
+static PERF_OBSERVER: std::sync::OnceLock<fn(&'static str, std::time::Duration)> =
+    std::sync::OnceLock::new();
 
-/// Registers a function called with the time each [`Window::draw`] took
-/// (render, layout and paint of one frame). Only the first call wins.
+/// Registers a function called with the time of each measured span: `frame`
+/// (a whole [`Window::draw`]) and its phases (`gpui.*`), plus first-time work
+/// such as glyph, SVG and image rasterization and font loading. Only the first
+/// call wins; without it the spans cost a single atomic load.
 /// Maestria: `MX_PERF` uses it to measure frame cost.
-pub fn set_draw_observer(observe: fn(std::time::Duration)) {
-    let _ = DRAW_OBSERVER.set(observe);
+pub fn set_perf_observer(observe: fn(&'static str, std::time::Duration)) {
+    let _ = PERF_OBSERVER.set(observe);
+}
+
+/// Measures from its creation to its drop, when a perf observer is set.
+pub(crate) struct PerfSpan {
+    label: &'static str,
+    start: Option<std::time::Instant>,
+}
+
+#[must_use]
+pub(crate) fn perf_span(label: &'static str) -> PerfSpan {
+    PerfSpan {
+        label,
+        start: PERF_OBSERVER.get().map(|_| std::time::Instant::now()),
+    }
+}
+
+impl Drop for PerfSpan {
+    fn drop(&mut self) {
+        if let (Some(observe), Some(start)) = (PERF_OBSERVER.get(), self.start) {
+            observe(self.label, start.elapsed());
+        }
+    }
 }
 
 /// Holds the state for a specific window.
@@ -1926,12 +1951,8 @@ impl Window {
     /// the contents of the new [`Scene`], use [`Self::present`].
     #[profiling::function]
     pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
-        let started = DRAW_OBSERVER.get().map(|_| std::time::Instant::now());
-        let cleared = self.draw_frame(cx);
-        if let (Some(observe), Some(started)) = (DRAW_OBSERVER.get(), started) {
-            observe(started.elapsed());
-        }
-        cleared
+        let _span = perf_span("frame");
+        self.draw_frame(cx)
     }
 
     fn draw_frame(&mut self, cx: &mut App) -> ArenaClearNeeded {
@@ -1946,6 +1967,7 @@ impl Window {
             self.rendered_frame.input_handlers.push(Some(input_handler));
         }
         self.draw_roots(cx);
+        let finish_span = perf_span("gpui.finish");
         self.dirty_views.clear();
         self.next_frame.window_active = self.active.get();
 
@@ -1958,7 +1980,9 @@ impl Window {
         self.layout_engine.as_mut().unwrap().clear();
         self.text_system().finish_frame();
         self.next_frame.finish(&mut self.rendered_frame);
+        drop(finish_span);
 
+        let _focus_span = perf_span("gpui.focus");
         self.invalidator.set_phase(DrawPhase::Focus);
         let previous_focus_path = self.rendered_frame.focus_path();
         let previous_window_active = self.rendered_frame.window_active;
@@ -2028,6 +2052,7 @@ impl Window {
 
     #[profiling::function]
     fn present(&self) {
+        let _span = perf_span("gpui.present");
         self.platform_window.draw(&self.rendered_frame.scene);
         self.needs_present.set(false);
         profiling::finish_frame!();
@@ -2055,9 +2080,21 @@ impl Window {
             }
         };
 
-        // Layout all root elements.
+        // Layout all root elements. Split in its three steps so each one can
+        // be measured: render + request_layout, taffy, then prepaint.
         let mut root_element = self.root.as_ref().unwrap().clone().into_any();
-        root_element.prepaint_as_root(Point::default(), root_size.into(), self, cx);
+        let span = perf_span("gpui.request_layout");
+        root_element.request_layout(self, cx);
+        drop(span);
+        let span = perf_span("gpui.layout");
+        root_element.layout_as_root(root_size.into(), self, cx);
+        drop(span);
+        let span = perf_span("gpui.prepaint");
+        self.with_absolute_element_offset(Point::default(), |window| {
+            root_element.prepaint(window, cx)
+        });
+        drop(span);
+        let overlays_span = perf_span("gpui.overlays");
 
         #[cfg(any(feature = "inspector", debug_assertions))]
         let inspector_element = self.prepaint_inspector(_inspector_width, cx);
@@ -2086,9 +2123,11 @@ impl Window {
         }
 
         self.mouse_hit_test = self.next_frame.hit_test(self.mouse_position);
+        drop(overlays_span);
 
         // Now actually paint the elements.
         self.invalidator.set_phase(DrawPhase::Paint);
+        let _paint_span = perf_span("gpui.paint");
         root_element.paint(self, cx);
 
         #[cfg(any(feature = "inspector", debug_assertions))]
@@ -3043,6 +3082,7 @@ impl Window {
             let tile = self
                 .sprite_atlas
                 .get_or_insert_with(&params.clone().into(), &mut || {
+                    let _span = perf_span("gpui.raster.glyph");
                     let (size, bytes) = self.text_system().rasterize_glyph(&params)?;
                     Ok(Some((size, Cow::Owned(bytes))))
                 })?
@@ -3099,6 +3139,7 @@ impl Window {
             let tile = self
                 .sprite_atlas
                 .get_or_insert_with(&params.clone().into(), &mut || {
+                    let _span = perf_span("gpui.raster.emoji");
                     let (size, bytes) = self.text_system().rasterize_glyph(&params)?;
                     Ok(Some((size, Cow::Owned(bytes))))
                 })?
@@ -3152,6 +3193,7 @@ impl Window {
         let Some(tile) =
             self.sprite_atlas
                 .get_or_insert_with(&params.clone().into(), &mut || {
+                    let _span = perf_span("gpui.raster.svg");
                     let Some((size, bytes)) = cx.svg_renderer.render(&params)? else {
                         return Ok(None);
                     };
@@ -3212,6 +3254,7 @@ impl Window {
         let tile = self
             .sprite_atlas
             .get_or_insert_with(&params.into(), &mut || {
+                let _span = perf_span("gpui.atlas.image");
                 Ok(Some((
                     data.size(frame_index),
                     Cow::Borrowed(
@@ -3339,6 +3382,7 @@ impl Window {
         cx: &mut App,
     ) {
         self.invalidator.debug_assert_prepaint();
+        let _span = perf_span("gpui.taffy");
 
         let mut layout_engine = self.layout_engine.take().unwrap();
         layout_engine.compute_layout(layout_id, available_space, self, cx);

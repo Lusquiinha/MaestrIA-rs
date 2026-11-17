@@ -17,6 +17,7 @@ pub struct Assets;
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+        let _perf = crate::perf::span("asset.load");
         Ok(FILES
             .iter()
             .find(|(p, _)| *p == path)

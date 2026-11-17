@@ -120,6 +120,11 @@ impl PluginLayer {
         cx.notify();
     }
 
+    pub fn close_local(&mut self, cx: &mut Context<Self>) {
+        self.local = None;
+        cx.notify();
+    }
+
     fn closer(&self, cx: &mut Context<Self>) -> super::widgets::Close {
         let me = cx.weak_entity();
         std::rc::Rc::new(move |_, cx| {

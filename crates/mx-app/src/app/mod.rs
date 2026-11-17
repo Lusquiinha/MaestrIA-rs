@@ -12,6 +12,7 @@ pub mod menu_actions;
 pub mod menus;
 pub mod notices;
 pub mod panel_actions;
+mod perf_tour;
 pub mod ports;
 pub mod restart;
 pub mod root;
@@ -82,7 +83,10 @@ pub fn open_main_window(cx: &mut App) -> anyhow::Result<()> {
         ..Default::default()
     };
     let stale = host.read(cx).stale_ptyd;
-    cx.open_window(options, |window, cx| cx.new(|cx| Root::new(host, window, cx)))?;
+    let window = cx.open_window(options, |window, cx| cx.new(|cx| Root::new(host, window, cx)))?;
+    if perf_tour::requested() {
+        perf_tour::start(window.into(), cx);
+    }
     if let Some(sessions) = stale {
         restart::confirm(restart::Kind::StaleDaemon { sessions }, cx);
     }

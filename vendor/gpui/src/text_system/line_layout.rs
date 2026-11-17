@@ -561,6 +561,7 @@ impl LineLayoutCache {
             layout
         } else {
             let text = SharedString::from(text);
+            let _span = crate::window::perf_span("gpui.shape");
             let mut layout = self
                 .platform_text_system
                 .layout_line(&text, font_size, runs);
