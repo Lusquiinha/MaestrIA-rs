@@ -290,6 +290,48 @@ fn equalize_evens_out_every_split_in_the_tree() {
 }
 
 #[test]
+fn equalize_turns_columns_of_equal_height_into_rows_split_evenly_by_their_panes() {
+    let mut n = row(
+        vec![
+            column(vec![leaf("nas"), leaf("maestria")], vec![0.5, 0.5]),
+            column(vec![leaf("lms"), row(vec![leaf("tickets"), leaf("task")], vec![0.5, 0.5])], vec![0.5, 0.5]),
+        ],
+        vec![0.42, 0.58],
+    );
+    n.equalize();
+    let s = n.as_split().unwrap();
+    assert_eq!(s.axis, Axis::Column);
+    assert!(close(&s.weights, &[0.5, 0.5]));
+    let (top, bottom) = (&s.children[0], &s.children[1]);
+    assert_eq!(top.order(), ["nas", "lms"]);
+    assert!(close(&weights(top), &[0.5, 0.5]));
+    assert_eq!(bottom.order(), ["maestria", "tickets", "task"]);
+    assert!(close(&weights(bottom), &[1. / 3., 2. / 3.]));
+    assert!(close(&weights(&bottom.as_split().unwrap().children[1]), &[0.5, 0.5]));
+}
+
+#[test]
+fn equalize_gives_each_pane_of_a_nested_same_axis_split_an_equal_share() {
+    let mut n = row(vec![leaf("a"), row(vec![leaf("b"), leaf("c")], vec![0.9, 0.1])], vec![0.5, 0.5]);
+    n.equalize();
+    assert!(close(&weights(&n), &[1. / 3., 2. / 3.]));
+    assert!(close(&weights(&n.as_split().unwrap().children[1]), &[0.5, 0.5]));
+}
+
+#[test]
+fn equalize_keeps_columns_of_different_heights_as_columns() {
+    let mut n = row(
+        vec![column(vec![leaf("a"), leaf("b")], vec![0.3, 0.7]), column(vec![leaf("c"), leaf("d"), leaf("e")], vec![0.2, 0.2, 0.6])],
+        vec![0.4, 0.6],
+    );
+    n.equalize();
+    assert_eq!(n.as_split().unwrap().axis, Axis::Row);
+    assert!(close(&weights(&n), &[0.5, 0.5]));
+    assert!(close(&weights(&n.as_split().unwrap().children[1]), &[1. / 3., 1. / 3., 1. / 3.]));
+    assert_eq!(n.order(), ["a", "b", "c", "d", "e"]);
+}
+
+#[test]
 fn equalize_at_a_path_only_touches_that_split() {
     let mut n = row(vec![leaf("a"), column(vec![leaf("b"), leaf("c")], vec![0.2, 0.8])], vec![0.3, 0.7]);
     assert!(n.equalize_at(&[1]));

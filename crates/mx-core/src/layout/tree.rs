@@ -175,9 +175,37 @@ impl PaneNode {
     }
 
     pub fn equalize(&mut self) {
+        if let Some(rows) = self.columns_as_rows() {
+            *self = rows;
+        }
         if let PaneNode::Split(s) = self {
-            s.equalize();
             s.children.iter_mut().for_each(PaneNode::equalize);
+            s.equalize();
+        }
+    }
+
+    fn columns_as_rows(&self) -> Option<PaneNode> {
+        let s = self.as_split().filter(|s| s.axis == Axis::Row)?;
+        let columns: Vec<&PaneSplit> =
+            s.children.iter().filter_map(PaneNode::as_split).filter(|c| c.axis == Axis::Column).collect();
+        let height = columns.first()?.children.len();
+        if columns.len() != s.children.len() || columns.iter().any(|c| c.children.len() != height) {
+            return None;
+        }
+        let rows = (0..height)
+            .map(|i| {
+                let cells: Vec<PaneNode> = columns.iter().map(|c| c.children[i].clone()).collect();
+                let share = vec![1.0 / cells.len() as f64; cells.len()];
+                PaneNode::split(Axis::Row, cells, share)
+            })
+            .collect();
+        Some(PaneNode::split(Axis::Column, rows, vec![1.0 / height as f64; height]))
+    }
+
+    fn span(&self, axis: Axis) -> f64 {
+        match self {
+            PaneNode::Split(s) if s.axis == axis => s.children.iter().map(|c| c.span(axis)).sum(),
+            _ => 1.0,
         }
     }
 
@@ -320,8 +348,9 @@ impl PaneSplit {
     }
 
     pub fn equalize(&mut self) {
-        let n = self.weights.len() as f64;
-        self.weights.iter_mut().for_each(|w| *w = 1.0 / n);
+        let spans: Vec<f64> = self.children.iter().map(|c| c.span(self.axis)).collect();
+        let total: f64 = spans.iter().sum();
+        self.weights = spans.into_iter().map(|s| s / total).collect();
     }
 
     pub fn resize(&mut self, gutter: isize, delta: f64, total: f64) {
