@@ -1,17 +1,17 @@
 ---
 name: release-notes
-description: Changelog de uma release do maestria-rs. Use ao publicar uma versão (`make tag`, "sobe a tag", "solta a release") ou quando pedirem o changelog/"o que mudou" de uma release — resume os PRs desde a tag anterior e coloca o resumo, com link para cada PR, no topo das notas da release no GitHub.
+description: Changelog de uma release do maestria-rs. Use ao subir a versão para lançar (`make bump`, "sobe um patch/minor", PR de versão) — escreve o resumo dos PRs desde a última tag em `packaging/changelog/<tag>.md`, que o CI põe no topo das notas da release. Também quando pedirem o changelog de uma release já publicada.
 ---
 
 # Changelog da release
 
-As notas da release saem do modelo fixo `packaging/NOTAS-DA-RELEASE.md` (instalação, atualizações, primeiro uso), que o workflow `release` publica ao terminar. Esta skill acrescenta no topo delas uma seção `## O que mudou`.
+O job `publicar` do workflow `release` monta as notas da release com `packaging/changelog/<tag>.md` (se existir) seguido do modelo fixo `packaging/NOTAS-DA-RELEASE.md`. O changelog entra no mesmo PR do bump de versão, antes da tag.
 
 ## Passos
 
-1. **Tag e intervalo.** A tag é a pedida, ou a da versão do `Cargo.toml` (`v<versão>`). A anterior: `git describe --tags --abbrev=0 <tag>^`. Pronto quando as duas existem no `upstream`.
+1. **Intervalo.** A tag nova é `v<versão>` do `Cargo.toml` depois do bump; a anterior, `git describe --tags --abbrev=0 upstream/main`. Pronto quando as duas estão definidas.
 
-2. **O que entrou.** `git log --first-parent --format='%h %s' <anterior>..<tag>` lista os merges (`Merge pull request #N …`) e os commits feitos direto no `main`. Para cada PR, `gh pr view N -R MatheusPano/MaestrIA-rs --json title,body,files`. Pronto quando cada PR e cada commit direto está classificado: vai para o changelog, ou é só bump de versão / CI / docs internos e fica de fora.
+2. **O que entrou.** `git log --first-parent --format='%h %s' <anterior>..upstream/main` lista os merges (`Merge pull request #N …`) e os commits feitos direto no `main`. Para cada PR, `gh pr view N -R MatheusPano/MaestrIA-rs --json title,body,files`. Pronto quando cada PR e cada commit direto está classificado: vai para o changelog, ou é só bump de versão / CI / docs internos e fica de fora.
 
 3. **O resumo.** Uma linha por mudança, em português, dizendo o que mudou para quem usa o app — o efeito, não a implementação — terminando no link do PR: `(#48)`. Commit direto sem PR leva o hash curto. Junte PRs que entregam a mesma coisa numa linha só (`(#50, #52)`). Com novidades e correções juntas, separe em `### Novidades` e `### Correções`; com um tipo só, lista simples.
 
@@ -21,8 +21,12 @@ As notas da release saem do modelo fixo `packaging/NOTAS-DA-RELEASE.md` (instala
    - O canvas do Design não treme mais parado (#48)
    ```
 
-4. **Espere a release existir.** A release é criada pelo CI, no job `publicar`. Acompanhe com `gh run list -R MatheusPano/MaestrIA-rs --workflow release --limit 3` e `gh run watch <id> -R MatheusPano/MaestrIA-rs`. Pronto quando `gh release view <tag> -R MatheusPano/MaestrIA-rs` responde com o `.deb` e o `.dmg` anexados. Criar ou editar a release antes disso faz o CI só anexar os arquivos e o texto do modelo nunca entra.
+4. **Grave e commite.** Salve em `packaging/changelog/<tag>.md` e commite no mesmo PR do bump (`Cargo.toml` + `Cargo.lock`). Pronto quando o PR do bump contém o arquivo; depois do merge, `make tag` publica a release já com o changelog.
 
-5. **Publique.** Leia o corpo atual (`gh release view <tag> --json body --jq .body`). Se ele já começa com `## O que mudou`, troque essa seção (até o próximo `## `); senão, ponha a seção nova antes do texto. Grave com `gh release edit <tag> -R MatheusPano/MaestrIA-rs --notes-file <arquivo>`. Pronto quando `gh release view <tag>` mostra a seção no topo e o texto do modelo inteiro logo abaixo.
+## Release já publicada
 
-6. Devolva o link da release e o resumo publicado.
+Quando a tag já subiu sem o arquivo, o changelog vai direto na release. Faça os passos 1–3 com o intervalo `<anterior>..<tag>` e:
+
+- Espere o job `publicar` terminar (`gh run list -R MatheusPano/MaestrIA-rs --workflow release --limit 3`, `gh run watch <id>`): é ele que cria a release, e uma release criada antes faz o CI só anexar os arquivos, sem o texto do modelo.
+- Leia o corpo (`gh release view <tag> -R MatheusPano/MaestrIA-rs --json body --jq .body`). Se já começa com `## O que mudou`, troque essa seção (até o próximo `## `); senão, ponha a seção antes do texto. Grave com `gh release edit <tag> -R MatheusPano/MaestrIA-rs --notes-file <arquivo>`. Pronto quando a release mostra a seção no topo e o texto do modelo inteiro abaixo.
+- Salve também o resumo em `packaging/changelog/<tag>.md` num PR, para o histórico ficar completo.

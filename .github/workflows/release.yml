@@ -160,7 +160,9 @@ jobs:
           set -euo pipefail
           ls -lh anexos
           (cd anexos && shopt -s nullglob && sha256sum *.deb *.dmg > SHA256SUMS && cat SHA256SUMS)
-          sed "s/{TAG}/$TAG/g" packaging/NOTAS-DA-RELEASE.md > notas.md
+          : > notas.md
+          [ -f "packaging/changelog/$TAG.md" ] && { cat "packaging/changelog/$TAG.md"; echo; } >> notas.md
+          sed "s/{TAG}/$TAG/g" packaging/NOTAS-DA-RELEASE.md >> notas.md
           gh release view "$TAG" >/dev/null 2>&1 \
             && gh release upload "$TAG" anexos/* --clobber \
             || gh release create "$TAG" anexos/* \
