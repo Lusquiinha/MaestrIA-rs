@@ -359,3 +359,16 @@ fn a_fitted_child_follows_the_zoom_in_the_same_frame(cx: &mut TestAppContext) {
     });
     assert!((used - wanted).abs() / wanted < 0.01, "drawn at {used}, the zoomed box wants {wanted}");
 }
+
+#[gpui::test]
+fn a_fitted_canvas_at_rest_stays_still_across_frames(cx: &mut TestAppContext) {
+    let plan = r#"ZoomView(maxScale: 8.0, child: FittedBox(fit: "contain",
+  child: SizedBox(width: 3599.999999999, height: 1499.999999999, child: Center(child: Text(text: "planta")))))"#;
+    let cx = open_plan(cx, plan);
+    let mut frames = Vec::new();
+    for _ in 0..6 {
+        cx.update(|window, _| window.refresh());
+        frames.push(label(cx));
+    }
+    assert!(frames.windows(2).all(|w| w[0] == w[1]), "the resting canvas moves between frames: {frames:?}");
+}

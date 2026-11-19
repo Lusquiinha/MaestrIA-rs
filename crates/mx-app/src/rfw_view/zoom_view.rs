@@ -23,6 +23,7 @@ use super::widgets_core::optional;
 const WHEEL_LINE_PX: f64 = 53.0 / 3.0;
 const DEFAULT_TEXT: f32 = 13.0;
 const FIT_EPSILON: f64 = 0.001;
+const NATURAL_SLACK_PX: f32 = 2.0;
 
 thread_local! {
     static SCALE: Cell<f32> = const { Cell::new(1.0) };
@@ -446,7 +447,10 @@ pub fn fitted(cx: &mut Ctx, f: &FittedBox, fit: Fit) -> El {
         move |bounds, window: &mut Window, cx: &mut App| {
             let n = (f32::from(bounds.size.width) / used, f32::from(bounds.size.height) / used);
             let mut st = child_slot.borrow_mut();
-            let fresh = st.natural.is_none_or(|o| (o.0 - n.0).abs() > 0.5 || (o.1 - n.1).abs() > 0.5);
+            // two pixel-snapped measurements of the same content differ by under 2 device px on screen
+            let fresh = st.natural.is_none_or(|o| {
+                (o.0 - n.0).abs() * used > NATURAL_SLACK_PX || (o.1 - n.1).abs() * used > NATURAL_SLACK_PX
+            });
             if fresh && n.0 > 0.0 && n.1 > 0.0 {
                 st.natural = Some(n);
                 refresh_after_draw(window, cx);
