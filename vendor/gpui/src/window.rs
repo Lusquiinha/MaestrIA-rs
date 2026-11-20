@@ -898,6 +898,7 @@ pub struct Window {
     pub(crate) needs_present: Rc<Cell<bool>>,
     pub(crate) last_input_timestamp: Rc<Cell<Instant>>,
     pub(crate) refreshing: bool,
+    pub(crate) frames_drawn: u64,
     pub(crate) activation_observers: SubscriberSet<(), AnyObserver>,
     pub(crate) focus: Option<FocusId>,
     focus_enabled: bool,
@@ -1281,6 +1282,7 @@ impl Window {
             needs_present,
             last_input_timestamp,
             refreshing: false,
+            frames_drawn: 0,
             activation_observers: SubscriberSet::new(),
             focus: None,
             focus_enabled: true,
@@ -1951,6 +1953,7 @@ impl Window {
     /// the contents of the new [`Scene`], use [`Self::present`].
     #[profiling::function]
     pub fn draw(&mut self, cx: &mut App) -> ArenaClearNeeded {
+        self.frames_drawn += 1;
         let _span = perf_span("frame");
         self.draw_frame(cx)
     }
