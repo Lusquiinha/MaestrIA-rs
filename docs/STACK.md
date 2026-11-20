@@ -41,7 +41,7 @@ Dev profile: `opt-level=1` for workspace crates, `opt-level=2` for all deps (kee
 
 `gpui` is gpui 0.2.2 copied from crates.io into `vendor/gpui` and wired with
 `[patch.crates-io]` in the root `Cargo.toml` (`exclude = ["vendor"]` keeps it out of the workspace,
-so it builds with the deps profile and without our lints). Three changes. First, in
+so it builds with the deps profile and without our lints). Four changes. First, in
 `src/platform/linux/x11/client.rs` `X11Client::run`:
 
 - **Bug:** the X11 loop is a calloop `Generic` source on the xcb fd, so it only wakes when the
@@ -89,6 +89,21 @@ primitives into the `BoundsTree`, sorting the scene and painting every glyph of 
   lookups. Refuses (returns false/None) on scale change, fractional device-pixel moves, paths,
   transformed sprites, or a region not fully inside the content mask. The terminal records each row.
 - Not upstream. Drop when gpui gains retained rendering for unchanged subtrees.
+
+Fourth change, stale ranges of cached views (`src/view.rs`, `src/window.rs`, BUG#91864):
+
+- **Bug:** `AnyView::cached` keeps the prepaint/paint ranges of its last draw and reuses them
+  against the previous frame. Ranges recorded in an older frame index a frame that is gone, and the
+  app aborted in `reuse_layouts` (`line_layout.rs:433`, "range start index 185 out of range for slice
+  of length 181"). Two ways reach it: a cached view under an `invisible()` parent (prepainted but not
+  painted, so `paint_range` stays old), and a cached view inside a `deferred` carried by a cached
+  ancestor reused whole and later visited outside the ancestor's `refreshing` scope. Repro:
+  `crates/mx-app/src/cached_view_tests.rs`.
+- **Fix:** `Window::frames_drawn` counts draws; each cached view stamps the frame of its ranges and
+  reuses them only when both come from the previous draw, otherwise it renders again. Cost: a cached
+  view under an `invisible()` parent renders on every hidden frame (none in the app today).
+- Taken from the open Zed PR zed-industries/zed#66451 (commit `cb3f7f40bd`), without its first
+  commit. Drop when a gpui release carries it.
 
 ## How the terminal works
 

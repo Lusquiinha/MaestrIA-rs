@@ -14,6 +14,9 @@ use std::{any::TypeId, fmt, ops::Range};
 struct AnyViewState {
     prepaint_range: Range<PrepaintStateIndex>,
     paint_range: Range<PaintIndex>,
+    /// Ranges are valid only when recorded in the previous draw.
+    prepaint_frame: u64,
+    paint_frame: u64,
     cache_key: ViewCacheKey,
     accessed_entities: FxHashSet<EntityId>,
 }
@@ -211,6 +214,8 @@ impl Element for AnyView {
                         && element_state.cache_key.text_style == text_style
                         && !window.dirty_views.contains(&self.entity_id())
                         && !window.refreshing
+                        && element_state.prepaint_frame + 1 == window.frames_drawn
+                        && element_state.paint_frame + 1 == window.frames_drawn
                     {
                         let prepaint_start = window.prepaint_index();
                         window.reuse_prepaint(element_state.prepaint_range.clone());
@@ -218,6 +223,7 @@ impl Element for AnyView {
                             .extend_accessed(&element_state.accessed_entities);
                         let prepaint_end = window.prepaint_index();
                         element_state.prepaint_range = prepaint_start..prepaint_end;
+                        element_state.prepaint_frame = window.frames_drawn;
 
                         return (None, element_state);
                     }
@@ -240,6 +246,8 @@ impl Element for AnyView {
                             accessed_entities,
                             prepaint_range: prepaint_start..prepaint_end,
                             paint_range: PaintIndex::default()..PaintIndex::default(),
+                            prepaint_frame: window.frames_drawn,
+                            paint_frame: 0,
                             cache_key: ViewCacheKey {
                                 bounds,
                                 content_mask,
@@ -282,6 +290,7 @@ impl Element for AnyView {
 
                         let paint_end = window.paint_index();
                         element_state.paint_range = paint_start..paint_end;
+                        element_state.paint_frame = window.frames_drawn;
 
                         ((), element_state)
                     },
