@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 mod app;
+#[cfg(test)]
+mod cached_view_tests;
 mod chrome;
 mod diagnostics;
 mod keymap;
